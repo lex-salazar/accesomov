@@ -3,37 +3,94 @@
 Hack4Mobility CDMX — API de accesibilidad urbana en Tlalpan.
 
 Endpoints:
-  GET /colonias           → GeoJSON completo (179 colonias)
-  GET /colonias/{cve_col} → Detalle + descripción generada por IA
-  GET /zonas-riesgo       → Colonias con score >= 4, con centroide
-  GET /resumen            → Estadísticas agregadas
+  GET  /colonias           → GeoJSON completo (179 colonias)
+  GET  /colonias/{cve_col} → Detalle + descripción generada por IA
+  GET  /zonas-riesgo       → Colonias con score >= 4, con centroide
+  GET  /resumen            → Estadísticas agregadas
+  POST /chat               → Chat conversacional con contexto de Tlalpan
 """
 
 from contextlib import asynccontextmanager
-import json
 import math
 import os
+from typing import List
 
 import groq
 import geopandas as gpd
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 GEOJSON_PATH = "tlalpan_accesibilidad.geojson"
 
 # Cargados una vez en memoria al arrancar la app
 _gdf: gpd.GeoDataFrame | None = None
-_geojson_bytes: bytes | None = None          # GeoJSON pre-serializado
+_geojson_bytes: bytes | None = None
 _client: groq.AsyncGroq | None = None
+_chat_system_prompt: str | None = None
+
+
+def _build_chat_system_prompt(gdf: gpd.GeoDataFrame) -> str:
+    """
+    Construye un system prompt compacto con contexto de Tlalpan.
+    Usa resumen estructurado en lugar de listar las 179 colonias para
+    mantenerse dentro del límite de tokens del tier gratuito de Groq.
+    """
+    promedio = round(float(gdf["score_accesibilidad"].mean()), 2)
+
+    # Colonias con peor accesibilidad (score >= 4.5)
+    peores = gdf[gdf["score_accesibilidad"] >= 4.5].sort_values(
+        "score_accesibilidad", ascending=False
+    )
+    peores_txt = "\n".join(
+        f"  - {r['colonia']} (score {r['score_accesibilidad']}, peatonal {r['INFRAPEAT']})"
+        for _, r in peores.iterrows()
+    )
+
+    # Colonias con mejor infraestructura ciclista (Cp_INFCICL <= 2)
+    bici = gdf[gdf["Cp_INFCICL"] <= 2].sort_values("score_accesibilidad")
+    bici_txt = "\n".join(
+        f"  - {r['colonia']} (score {r['score_accesibilidad']})"
+        for _, r in bici.head(12).iterrows()
+    )
+
+    # Colonias con mejor accesibilidad general (score <= 2.5)
+    mejores = gdf[gdf["score_accesibilidad"] <= 2.5].sort_values("score_accesibilidad")
+    mejores_txt = "\n".join(
+        f"  - {r['colonia']} (score {r['score_accesibilidad']}, peatonal {r['INFRAPEAT']})"
+        for _, r in mejores.iterrows()
+    )
+
+    # Distribución por nivel
+    dist = gdf["nivel_acceso"].value_counts().sort_index()
+    dist_txt = " | ".join(f"{k.split('-')[1]}: {v}" for k, v in dist.items())
+
+    return f"""Eres un asistente de movilidad accesible para Tlalpan, CDMX.
+Ayudas a personas con movilidad reducida, silla de ruedas, adultos mayores y ciclistas.
+Responde en español, de forma empática y concreta. Máximo 4 oraciones por respuesta.
+Nunca solicitas ni almacenas datos personales del usuario.
+
+DATOS DE TLALPAN (179 colonias, score 1=mejor, 5=peor):
+Score promedio: {promedio}/5 | Distribución: {dist_txt}
+
+COLONIAS CON PEOR ACCESIBILIDAD (evitar o planear con cuidado):
+{peores_txt}
+
+COLONIAS MÁS SEGURAS PARA CICLISTAS (buena infraestructura ciclista):
+{bici_txt}
+
+COLONIAS CON MEJOR ACCESIBILIDAD GENERAL:
+{mejores_txt}"""
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _gdf, _geojson_bytes, _client
+    global _gdf, _geojson_bytes, _client, _chat_system_prompt
 
     _gdf = gpd.read_file(GEOJSON_PATH)
     _geojson_bytes = _gdf.to_json().encode()
+    _chat_system_prompt = _build_chat_system_prompt(_gdf)
 
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
@@ -41,6 +98,7 @@ async def lifespan(app: FastAPI):
     _client = groq.AsyncGroq(api_key=api_key)
 
     print(f"✓ GeoJSON cargado: {len(_gdf)} colonias")
+    print(f"✓ System prompt del chat: {len(_chat_system_prompt)} caracteres")
     yield
 
     await _client.close()
@@ -247,3 +305,44 @@ async def get_resumen():
             "nivel_acceso": peor["nivel_acceso"],
         },
     }
+
+
+# ── Chat conversacional ───────────────────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    role: str       # "user" | "assistant"
+    content: str
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+
+
+@app.post("/chat", summary="Chat conversacional sobre movilidad accesible en Tlalpan")
+async def chat(request: ChatRequest):
+    """
+    Recibe el historial completo de mensajes y devuelve la respuesta del asistente.
+    El system prompt incluye el contexto de accesibilidad de las 179 colonias.
+    """
+    # Descartar mensajes de asistente al inicio del historial (ej. bienvenida)
+    # para que la conversación siempre empiece con un turno de usuario.
+    api_messages = [m for m in request.messages]
+    while api_messages and api_messages[0].role == "assistant":
+        api_messages.pop(0)
+
+    if not api_messages:
+        raise HTTPException(status_code=422, detail="No hay mensajes de usuario en el historial")
+
+    try:
+        response = await _client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            max_tokens=600,
+            messages=[
+                {"role": "system", "content": _chat_system_prompt},
+                *[{"role": m.role, "content": m.content} for m in api_messages],
+            ],
+        )
+        return {"response": response.choices[0].message.content.strip()}
+    except groq.APIError as e:
+        raise HTTPException(status_code=502, detail=f"Error en Groq API: {e.message}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))

@@ -4,6 +4,7 @@ import SidebarStats from './components/SidebarStats'
 import ZonasRiesgo from './components/ZonasRiesgo'
 import ColoniaDetail from './components/ColoniaDetail'
 import Toast from './components/Toast'
+import ChatView from './components/ChatView'
 
 const API = 'http://localhost:8000'
 
@@ -31,6 +32,7 @@ export default function App() {
   const [detailLoading, setDetailLoad]  = useState(false)
 
   const [toast, setToast]               = useState(null)
+  const [view, setView]                 = useState('map')   // 'map' | 'chat'
   const mapRef                          = useRef(null)
 
   const showToast = useCallback((msg) => setToast(msg), [])
@@ -90,6 +92,7 @@ export default function App() {
 
       {/* ── Header ──────────────────────────────────────────────── */}
       <header className="flex-shrink-0 flex items-center justify-between px-5 py-2.5 bg-gray-900 border-b border-gray-800">
+        {/* Logo */}
         <div className="flex items-center gap-3">
           <span className="text-xl">♿</span>
           <div>
@@ -100,54 +103,83 @@ export default function App() {
           </div>
         </div>
 
-        {/* Leyenda de colores */}
-        <div className="flex items-center gap-4">
-          {LEGEND.map(({ label, color }) => (
-            <span key={label} className="flex items-center gap-1.5 text-xs text-gray-400">
-              <span
-                className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
-                style={{ backgroundColor: color }}
-              />
+        {/* Tab switcher */}
+        <div className="flex rounded-lg bg-gray-800 p-0.5 gap-0.5">
+          {[
+            { id: 'map',  label: 'Mapa' },
+            { id: 'chat', label: 'Asistente' },
+          ].map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setView(id)}
+              className={`px-4 py-1.5 text-xs font-semibold rounded-md transition-colors ${
+                view === id
+                  ? 'bg-gray-700 text-white'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
               {label}
-            </span>
+            </button>
           ))}
-          <span className="text-xs text-gray-600 ml-2">
-            Score accesibilidad (1=mejor)
-          </span>
         </div>
+
+        {/* Leyenda (solo en vista mapa) */}
+        {view === 'map' ? (
+          <div className="flex items-center gap-4">
+            {LEGEND.map(({ label, color }) => (
+              <span key={label} className="flex items-center gap-1.5 text-xs text-gray-400">
+                <span
+                  className="inline-block w-2.5 h-2.5 rounded-sm flex-shrink-0"
+                  style={{ backgroundColor: color }}
+                />
+                {label}
+              </span>
+            ))}
+            <span className="text-xs text-gray-600 ml-1">1=mejor</span>
+          </div>
+        ) : (
+          <div className="w-48" /> /* spacer para centrar los tabs */
+        )}
       </header>
 
       {/* ── Cuerpo ──────────────────────────────────────────────── */}
       <div className="flex flex-1 min-h-0">
 
-        {/* Sidebar izquierdo */}
-        <aside className="w-72 flex-shrink-0 flex flex-col bg-gray-900 border-r border-gray-800 overflow-hidden">
-          <SidebarStats resumen={resumen} loading={initialLoading} />
-          <ZonasRiesgo
-            colonias={zonasRiesgo}
-            loading={initialLoading}
-            onSelect={flyTo}
-          />
-        </aside>
+        {view === 'map' ? (
+          <>
+            {/* Sidebar izquierdo */}
+            <aside className="w-72 flex-shrink-0 flex flex-col bg-gray-900 border-r border-gray-800 overflow-hidden">
+              <SidebarStats resumen={resumen} loading={initialLoading} />
+              <ZonasRiesgo
+                colonias={zonasRiesgo}
+                loading={initialLoading}
+                onSelect={flyTo}
+              />
+            </aside>
 
-        {/* Área del mapa + panel de detalle */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
-          <MapView
-            ref={mapRef}
-            geojson={geojson}
-            selectedCveCol={selectedCveCol}
-            onColoniaClick={handleColoniaClick}
-          />
-
-          {/* Panel inferior: aparece al seleccionar una colonia */}
-          {(selectedCveCol || detailLoading) && (
-            <ColoniaDetail
-              data={coloniaDetail}
-              loading={detailLoading}
-              onClose={closeDetail}
-            />
-          )}
-        </div>
+            {/* Área del mapa + panel de detalle */}
+            <div className="flex-1 flex flex-col min-w-0 min-h-0">
+              <MapView
+                ref={mapRef}
+                geojson={geojson}
+                selectedCveCol={selectedCveCol}
+                onColoniaClick={handleColoniaClick}
+              />
+              {(selectedCveCol || detailLoading) && (
+                <ColoniaDetail
+                  data={coloniaDetail}
+                  loading={detailLoading}
+                  onClose={closeDetail}
+                />
+              )}
+            </div>
+          </>
+        ) : (
+          /* Vista chat */
+          <div className="flex flex-1 min-h-0 bg-gray-950">
+            <ChatView />
+          </div>
+        )}
       </div>
 
       {/* Toast de error */}
