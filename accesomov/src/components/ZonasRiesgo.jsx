@@ -1,77 +1,80 @@
 import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { ChevronDown, ChevronUp, AlertOctagon, MapPin } from 'lucide-react'
 
-function scoreColor(score) {
-  if (score >= 5) return '#ef4444'
-  if (score >= 4.5) return '#f97316'
+function scoreColor(s) {
+  if (s >= 5)   return '#ef4444'
+  if (s >= 4.5) return '#f97316'
   return '#fb923c'
-}
-
-function Skeleton() {
-  return (
-    <div className="px-4 py-2 space-y-2">
-      {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="h-8 bg-gray-800 rounded animate-pulse" />
-      ))}
-    </div>
-  )
 }
 
 export default function ZonasRiesgo({ colonias, loading, onSelect }) {
   const [open, setOpen] = useState(true)
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 border-t border-gray-800">
-      {/* Header colapsable */}
+    <div className="px-4 pb-4">
+      {/* Header */}
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="flex-shrink-0 flex items-center justify-between px-4 py-3 hover:bg-gray-800/60 transition-colors text-left"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between py-3"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-300">Zonas de riesgo</span>
-          <span className="bg-red-900/70 text-red-300 text-xs font-semibold px-1.5 py-0.5 rounded">
+          <AlertOctagon className="w-4 h-4" style={{ color: '#ef4444' }} />
+          <span className="text-sm font-bold text-white">Zonas de riesgo</span>
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+            style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.25)' }}
+          >
             {loading ? '…' : colonias.length}
           </span>
         </div>
-        <span className="text-gray-500 text-[10px]">{open ? '▲' : '▼'}</span>
+        {open
+          ? <ChevronUp className="w-4 h-4" style={{ color: '#aeaeb2' }} />
+          : <ChevronDown className="w-4 h-4" style={{ color: '#aeaeb2' }} />
+        }
       </button>
 
-      {/* Lista */}
-      {open && (
-        <div className="flex-1 overflow-y-auto sidebar-scroll min-h-0">
-          {loading ? (
-            <Skeleton />
-          ) : (
-            <ul>
-              {colonias.map((col) => (
-                <li key={col.cve_col}>
-                  <button
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22 }}
+            className="overflow-hidden space-y-2"
+          >
+            {loading
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ background: '#f2f2f7', animationDelay: `${i*60}ms` }} />
+                ))
+              : colonias.map((col, i) => (
+                  <motion.button
+                    key={col.cve_col}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: i * 0.025 }}
                     onClick={() => onSelect(col.centroide.lng, col.centroide.lat)}
-                    className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-800/70 transition-colors text-left group"
+                    className="w-full wz-card flex items-center gap-3 px-4 py-3 text-left active:scale-[0.98] transition-transform"
                   >
-                    {/* Indicador de color */}
-                    <span
-                      className="flex-shrink-0 w-1.5 h-6 rounded-full"
-                      style={{ backgroundColor: scoreColor(col.score_accesibilidad) }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-gray-300 truncate group-hover:text-white leading-tight">
-                        {col.colonia}
-                      </p>
-                      <p className="text-[10px] text-gray-500 mt-0.5">{col.INFRAPEAT}</p>
-                    </div>
-                    <span
-                      className="flex-shrink-0 text-xs font-bold tabular-nums"
-                      style={{ color: scoreColor(col.score_accesibilidad) }}
+                    <div
+                      className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: `${scoreColor(col.score_accesibilidad)}18`, border: `1px solid ${scoreColor(col.score_accesibilidad)}35` }}
                     >
+                      <MapPin className="w-4 h-4" style={{ color: scoreColor(col.score_accesibilidad) }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-white truncate leading-tight">{col.colonia}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: '#8e8e93' }}>{col.INFRAPEAT} peatonal</p>
+                    </div>
+                    <span className="text-base font-black tabular-nums flex-shrink-0" style={{ color: scoreColor(col.score_accesibilidad) }}>
                       {col.score_accesibilidad}
                     </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+                  </motion.button>
+                ))
+            }
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

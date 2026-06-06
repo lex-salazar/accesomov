@@ -1,81 +1,123 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-
-const API = 'http://localhost:8000'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Send, Bot, Sparkles } from 'lucide-react'
+import { API } from '../config'
 
 const WELCOME = {
   role: 'assistant',
-  content:
-    'Hola, soy tu asistente de movilidad en Tlalpan. Puedo ayudarte a encontrar rutas accesibles, zonas seguras para ciclistas, y áreas a evitar. ¿A dónde quieres ir?',
+  content: 'Hola, soy tu asistente de movilidad en Tlalpan. Puedo ayudarte a encontrar rutas accesibles, zonas seguras y áreas a evitar. ¿En qué te puedo ayudar?',
 }
 
 const EXAMPLES = [
   '¿Qué colonias son más seguras para ir en bici?',
   'Voy de Pedregal a CU, ¿qué zonas evito?',
-  '¿Cuáles son las colonias con peor accesibilidad?',
+  '¿Cuáles tienen peor accesibilidad?',
 ]
 
 function TypingIndicator() {
   return (
-    <div className="flex items-end gap-2">
-      <span className="text-lg flex-shrink-0">♿</span>
-      <div className="bg-gray-800 rounded-2xl rounded-bl-sm px-4 py-3">
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex items-end gap-3">
+      <div className="w-8 h-8 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--teal-dim)', border: '1px solid rgba(0,200,184,0.3)' }}>
+        <Bot className="w-4 h-4" style={{ color: '#FF6600' }} />
+      </div>
+      <div className="rounded-2xl rounded-bl-sm px-4 py-3 wz-card">
         <div className="flex gap-1.5 items-center h-4">
-          {[0, 150, 300].map((delay) => (
-            <span
-              key={delay}
-              className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
-              style={{ animationDelay: `${delay}ms` }}
+          {[0, 150, 300].map(d => (
+            <motion.span
+              key={d}
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ background: 'var(--teal)' }}
+              animate={{ y: [0, -5, 0] }}
+              transition={{ duration: 0.55, repeat: Infinity, delay: d / 1000, ease: 'easeInOut' }}
             />
           ))}
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
-function Bubble({ msg, isFirst, onExampleClick }) {
+function Bubble({ msg, isFirst, onExampleClick, index }) {
   const isUser = msg.role === 'user'
-
   return (
-    <div className={`flex items-end gap-2 ${isUser ? 'flex-row-reverse' : ''}`}>
-      {!isUser && <span className="text-lg flex-shrink-0">♿</span>}
-
-      <div className="flex flex-col gap-2 max-w-[78%]">
+    <motion.div
+      initial={{ opacity: 0, y: 10, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.22, delay: index < 2 ? index * 0.08 : 0 }}
+      className={`flex items-end gap-3 ${isUser ? 'flex-row-reverse' : ''}`}
+    >
+      {!isUser && (
+        <div className="w-8 h-8 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: 'var(--teal-dim)', border: '1px solid rgba(0,200,184,0.3)' }}>
+          <Bot className="w-4 h-4" style={{ color: '#FF6600' }} />
+        </div>
+      )}
+      <div className="flex flex-col gap-2 max-w-[80%]">
         <div
-          className={`px-4 py-2.5 text-sm leading-relaxed ${
-            isUser
-              ? 'bg-blue-600 text-white rounded-2xl rounded-br-sm'
-              : 'bg-gray-800 text-gray-200 rounded-2xl rounded-bl-sm'
-          }`}
+          className={`px-4 py-3 text-sm leading-relaxed ${isUser ? 'rounded-2xl rounded-br-sm' : 'rounded-2xl rounded-bl-sm'}`}
+          style={isUser ? {
+            background: 'var(--teal)',
+            color: '#0a1520',
+            fontWeight: 600,
+            boxShadow: '0 4px 20px rgba(0,200,184,0.3)',
+          } : {
+            background: '#f2f2f7',
+            color: 'rgba(255,255,255,0.85)',
+            border: '1px solid rgba(255,255,255,0.07)',
+          }}
         >
           {msg.content}
         </div>
-
-        {/* Preguntas de ejemplo bajo el mensaje de bienvenida */}
         {isFirst && !isUser && (
           <div className="flex flex-col gap-1.5">
-            {EXAMPLES.map((q) => (
-              <button
+            {EXAMPLES.map((q, i) => (
+              <motion.button
                 key={q}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.18, delay: 0.3 + i * 0.07 }}
                 onClick={() => onExampleClick(q)}
-                className="text-left text-xs bg-gray-800/70 hover:bg-gray-700 border border-gray-700 hover:border-gray-600 text-gray-300 hover:text-white rounded-xl px-3 py-2 transition-colors"
+                className="text-left text-xs font-semibold px-3 py-2.5 rounded-xl transition-all active:scale-[0.97]"
+                style={{ background: '#f2f2f7', color: '#FF6600', border: '1px solid rgba(0,200,184,0.2)' }}
               >
                 {q}
-              </button>
+              </motion.button>
             ))}
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
-export default function ChatView() {
+export default function ChatView({ sidebar = false }) {
   const [messages, setMessages] = useState([WELCOME])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const [kbHeight, setKbHeight] = useState(0)
   const bottomRef               = useRef(null)
   const inputRef                = useRef(null)
+  const sabRef                  = useRef(0)
+
+  useEffect(() => {
+    const div = document.createElement('div')
+    div.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);pointer-events:none;visibility:hidden'
+    document.body.appendChild(div)
+    sabRef.current = div.getBoundingClientRect().height || 0
+    document.body.removeChild(div)
+
+    const vv = window.visualViewport
+    if (!vv) return
+    const update = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+      setKbHeight(Math.round(kb))
+    }
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -84,82 +126,85 @@ export default function ChatView() {
   const send = useCallback(async (text) => {
     const trimmed = text.trim()
     if (!trimmed || loading) return
-
-    const userMsg  = { role: 'user', content: trimmed }
-    const next     = [...messages, userMsg]
+    const userMsg = { role: 'user', content: trimmed }
+    const next = [...messages, userMsg]
     setMessages(next)
     setInput('')
     setLoading(true)
     inputRef.current?.focus()
-
     try {
       const res = await fetch(`${API}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: next }),
       })
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+      if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.response }])
+      setMessages(p => [...p, { role: 'assistant', content: data.response }])
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: 'Lo siento, hubo un error al procesar tu pregunta. Por favor intenta de nuevo.',
-        },
-      ])
+      setMessages(p => [...p, { role: 'assistant', content: 'Lo siento, hubo un error. Intenta de nuevo.' }])
     } finally {
       setLoading(false)
     }
   }, [messages, loading])
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
-    send(input)
-  }
-
   return (
-    <div className="flex flex-col flex-1 min-h-0 max-w-3xl mx-auto w-full">
+    <div className="flex flex-col flex-1 min-h-0 w-full">
+      {/* Header — oculto en sidebar (el App.jsx tiene el suyo) */}
+      {!sidebar && (
+        <div className="flex-shrink-0 px-5 py-4 flex items-center gap-3" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="icon-tile-orange" style={{ width: 40, height: 40, borderRadius: 14 }}>
+            <Sparkles size={18} />
+          </div>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 800, color: '#000', letterSpacing: '-0.025em' }}>Asistente IA</p>
+            <p style={{ fontSize: 10, color: '#FF6600', fontWeight: 600 }}>Tlalpan · Movilidad urbana</p>
+          </div>
+        </div>
+      )}
 
-      {/* Mensajes */}
-      <div className="flex-1 overflow-y-auto px-4 py-5 space-y-4 sidebar-scroll">
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 thin-scroll">
         {messages.map((msg, i) => (
-          <Bubble
-            key={i}
-            msg={msg}
-            isFirst={i === 0}
-            onExampleClick={send}
-          />
+          <Bubble key={i} msg={msg} isFirst={i === 0} onExampleClick={send} index={i} />
         ))}
-
-        {loading && <TypingIndicator />}
+        <AnimatePresence>{loading && <TypingIndicator />}</AnimatePresence>
         <div ref={bottomRef} />
       </div>
 
       {/* Input */}
-      <div className="flex-shrink-0 px-4 pb-5 pt-3 border-t border-gray-800">
-        <form onSubmit={handleSubmit} className="flex gap-2">
+      <div
+        className="flex-shrink-0 px-4 pt-3"
+        style={{
+          paddingBottom: kbHeight > 0
+            ? `${Math.max(12, kbHeight - 64 - sabRef.current + 8)}px`
+            : '16px',
+          transition: 'padding-bottom 0.2s ease',
+          borderTop: '1px solid rgba(255,255,255,0.06)',
+        }}
+      >
+        <form onSubmit={e => { e.preventDefault(); send(input) }} className="flex gap-2">
           <input
             ref={inputRef}
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Escribe tu pregunta sobre movilidad en Tlalpan…"
+            onChange={e => setInput(e.target.value)}
+            placeholder="Pregunta sobre movilidad en Tlalpan…"
             disabled={loading}
-            className="flex-1 bg-gray-800 text-white placeholder-gray-500 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition"
+            className="flex-1 wz-input px-4 py-3 text-white disabled:opacity-40"
+            style={{ fontSize: '16px' }}
           />
-          <button
+          <motion.button
             type="submit"
             disabled={!input.trim() || loading}
-            className="bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2.5 text-lg transition-colors"
-            aria-label="Enviar"
+            whileTap={{ scale: 0.92 }}
+            className="wz-btn w-12 h-12 flex items-center justify-center rounded-2xl disabled:opacity-30 flex-shrink-0"
           >
-            ↑
-          </button>
+            <Send className="w-4 h-4" />
+          </motion.button>
         </form>
-        <p className="text-[10px] text-gray-600 mt-2 text-center">
-          No recopilamos datos personales · Fuente: Datos Abiertos CDMX
+        <p className="text-center text-[10px] mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          Fuente: Datos Abiertos CDMX
         </p>
       </div>
     </div>

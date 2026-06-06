@@ -1,5 +1,6 @@
-import { forwardRef, useImperativeHandle, useRef, useCallback, useState } from 'react'
-import Map, { Source, Layer } from 'react-map-gl'
+import { forwardRef, useImperativeHandle, useRef, useCallback, useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import Map, { Source, Layer, Marker } from 'react-map-gl'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 
@@ -15,11 +16,19 @@ const COLOR_EXPR = [
 ]
 
 const MapView = forwardRef(function MapView(
-  { geojson, selectedCveCol, onColoniaClick },
+  { geojson, selectedCveCol, onColoniaClick, incidents = [], userLocation },
   ref
 ) {
   const mapRef = useRef(null)
   const [cursor, setCursor] = useState('auto')
+  const [showHint, setShowHint] = useState(false)
+
+  useEffect(() => {
+    if (!geojson) return
+    setShowHint(true)
+    const t = setTimeout(() => setShowHint(false), 2000)
+    return () => clearTimeout(t)
+  }, [geojson])
 
   useImperativeHandle(ref, () => ({
     flyTo: (lng, lat) => {
@@ -42,18 +51,13 @@ const MapView = forwardRef(function MapView(
   const handleMouseLeave = useCallback(() => setCursor('auto'), [])
 
   return (
-    // flex-1 toma el espacio disponible; position:relative ancla los hijos absolutos
-    <div className="flex-1 relative">
-      {/*
-        El div absolutamente posicionado le da al Map dimensiones de píxeles
-        reales, evitando que height:100% falle al resolver a través de flex.
-      */}
+    <div style={{ position: 'absolute', inset: 0 }}>
       <div style={{ position: 'absolute', inset: 0 }}>
         <Map
           ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
           initialViewState={INITIAL_VIEW}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle="mapbox://styles/mapbox/light-v11"
           interactiveLayerIds={geojson ? ['colonias-fill'] : []}
           onClick={handleClick}
           onMouseMove={handleMouseMove}
@@ -77,21 +81,45 @@ const MapView = forwardRef(function MapView(
                 id="colonias-outline"
                 type="line"
                 paint={{
-                  'line-color': 'rgba(255,255,255,0.12)',
+                  'line-color': 'rgba(0,0,0,0.12)',
                   'line-width': 0.5,
                 }}
               />
-              {/* Borde blanco grueso de la colonia seleccionada */}
               <Layer
                 id="colonias-selected"
                 type="line"
                 paint={{
-                  'line-color': '#ffffff',
+                  'line-color': '#FF6600',
                   'line-width': 2.5,
                 }}
                 filter={['==', ['get', 'cve_col'], selectedCveCol ?? '']}
               />
             </Source>
+          )}
+
+          {/* Pins de incidentes reportados */}
+          {incidents.map((inc) => (
+            <Marker key={inc.id} longitude={inc.lng} latitude={inc.lat}>
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%',
+                background: inc.color, border: '3px solid white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.3)',
+                transform: 'translate(-50%,-50%)',
+              }}>
+                <inc.Icon size={15} color="white" />
+              </div>
+            </Marker>
+          ))}
+
+          {/* Punto de ubicación del usuario */}
+          {userLocation && (
+            <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
+              <div style={{ transform: 'translate(-50%,-50%)', position: 'relative' }}>
+                <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#FF6600', border: '3px solid white', boxShadow: '0 2px 8px rgba(255,102,0,0.5)', position: 'relative', zIndex: 1 }} />
+                <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', background: 'rgba(255,102,0,0.15)', animation: 'pulse 2s infinite' }} />
+              </div>
+            </Marker>
           )}
         </Map>
 
@@ -108,14 +136,22 @@ const MapView = forwardRef(function MapView(
           </div>
         )}
 
-        {/* Hint de interacción */}
-        {geojson && !selectedCveCol && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none">
-            <div className="bg-gray-900/80 backdrop-blur-sm text-gray-400 text-xs px-3 py-1.5 rounded-full border border-gray-700">
-              Haz click en una colonia para ver su detalle
-            </div>
-          </div>
-        )}
+        {/* Hint — aparece 2s y fade out */}
+        <AnimatePresence>
+          {showHint && !selectedCveCol && (
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.4 }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+            >
+              <div className="lg-pill text-slate-300 text-xs px-4 py-2 rounded-full whitespace-nowrap">
+                Toca una colonia para ver su detalle
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   )

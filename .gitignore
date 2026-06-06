@@ -18,5 +18,14 @@ accesomov/.vite/
 # Datos crudos (shapefiles pesados)
 back/datos/
 
+# Expo
+mobile/.expo/
+mobile/node_modules/
+
 # macOS
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

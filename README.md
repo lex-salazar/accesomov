@@ -1,118 +1,242 @@
-# AccesoMov · Hack4Mobility CDMX
+# AccesoMov
 
-Dashboard de accesibilidad peatonal y ciclista en Tlalpan, Ciudad de México, con descripciones generadas por IA para personas con movilidad reducida.
+> Movilidad urbana accesible en Tlalpan, CDMX — mapa de accesibilidad, rutas seguras con IA y reportes ciudadanos en tiempo real.
 
-Desarrollado para el hackathon **Hack4Mobility CDMX — IA para una movilidad universitaria inteligente y segura**.
+![Stack](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react)
+![Stack](https://img.shields.io/badge/FastAPI-Python-009688?style=flat-square&logo=fastapi)
+![Stack](https://img.shields.io/badge/Expo-SDK%2054-000020?style=flat-square&logo=expo)
+![Stack](https://img.shields.io/badge/Mapbox-GL%20JS-4264FB?style=flat-square&logo=mapbox)
+![Stack](https://img.shields.io/badge/Groq-llama3--70b-F55036?style=flat-square)
+
+---
+
+## ¿Qué es AccesoMov?
+
+AccesoMov ayuda a peatones, ciclistas y personas con movilidad reducida a navegar Tlalpan de forma segura. Cruza datos abiertos de infraestructura urbana (banquetas, rampas, ciclovías, iluminación) con un modelo de accesibilidad propio, y los enriquece con análisis de lenguaje natural vía Groq AI.
+
+**Hecho para Hack4Mobility 2025 · CDMX**
+
+---
+
+## Arquitectura
+
+```
+accesomov/
+├── accesomov/     ← Frontend   (Vite + React + Mapbox GL)
+├── back/          ← Backend    (FastAPI + Groq + GeoPandas)
+└── mobile/        ← App móvil  (Expo SDK 54 + WebView)
+```
+
+---
+
+## Funcionalidades
+
+| Módulo | Descripción |
+|---|---|
+| Mapa de accesibilidad | 118 colonias de Tlalpan coloreadas por score (verde → rojo) |
+| Detalle de colonia | Infraestructura peatonal, ciclista, rampas, iluminación + análisis IA |
+| Rutas accesibles | Origen → destino con Mapbox Directions, evaluadas por zonas de riesgo |
+| Reportes ciudadanos | Inundación · zona insegura · operativo · tráfico · sin luz · peligro |
+| Botón de pánico | Alarma sonora via Web Audio API, activable desde mapa y sidebar |
+| Asistente IA | Chat contextual sobre movilidad en Tlalpan (Groq llama3-70b) |
+| Datos curiosos | 50 estadísticas rotativas sobre movilidad urbana en CDMX |
+| Geolocalización nativa | Coordenadas reales via expo-location → inyectadas al WebView |
+
+---
+
+## Stack tecnológico
+
+| Capa | Tecnología |
+|---|---|
+| Frontend | Vite · React 18 · Tailwind CSS · Framer Motion |
+| Mapas | Mapbox GL JS · Mapbox Directions API · react-map-gl |
+| Backend | FastAPI · Python 3.11 · GeoPandas · Shapely |
+| IA | Groq API (llama-3.3-70b-versatile) |
+| Móvil | Expo SDK 54 · React Native WebView · expo-location |
+| Datos | GeoJSON Tlalpan — Datos Abiertos CDMX |
+
+---
+
+## Instalación rápida
+
+### Requisitos previos
+
+- Node.js 18+ y Yarn
+- Python 3.11+
+- [Expo Go](https://expo.dev/go) en el iPhone (SDK 54)
+- Token de [Mapbox](https://mapbox.com) (gratuito)
+- API key de [Groq](https://console.groq.com) (gratuita)
+
+---
+
+### Backend
+
+```bash
+cd back
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+cp .env.example .env
+# Agregar: GROQ_API_KEY=gsk_...
+
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+> Docs interactivos: `http://localhost:8000/docs`
+
+---
+
+### Frontend
+
+```bash
+cd accesomov
+yarn install
+
+cp .env.example .env
+# Agregar: VITE_MAPBOX_TOKEN=pk.eyJ1...
+```
+
+Editar la IP del backend en `src/config.js`:
+```js
+export const API = 'http://TU_IP_LOCAL:8000'
+```
+
+```bash
+yarn dev
+```
+
+---
+
+### App móvil
+
+```bash
+cd mobile
+yarn install
+```
+
+Editar la IP en `App.js`:
+```js
+const DEV_URL = 'http://TU_IP_LOCAL:5173'
+```
+
+```bash
+yarn start
+# Escanear QR con Expo Go (misma red WiFi)
+```
+
+---
+
+## Variables de entorno
+
+| Archivo | Variable | Dónde obtenerla |
+|---|---|---|
+| `back/.env` | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) → API Keys |
+| `accesomov/.env` | `VITE_MAPBOX_TOKEN` | [mapbox.com](https://account.mapbox.com) → Tokens |
+
+---
+
+## Endpoints del backend
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `GET` | `/colonias` | GeoJSON con todas las colonias y scores |
+| `GET` | `/resumen` | Estadísticas generales de accesibilidad |
+| `GET` | `/zonas-riesgo` | Top colonias con mayor score de riesgo |
+| `GET` | `/colonias/{cve_col}` | Detalle + análisis IA de una colonia |
+| `POST` | `/chat` | Chat con asistente de movilidad |
+| `POST` | `/ruta-analisis` | Análisis de accesibilidad de una ruta |
+
+---
+
+## Score de accesibilidad
+
+Score del **1 al 5** combinando cuatro indicadores de infraestructura urbana:
+
+| Indicador | Peso |
+|---|---|
+| Infraestructura peatonal (banquetas, rampas) | 40% |
+| Infraestructura ciclista | 25% |
+| Iluminación pública | 20% |
+| Densidad vial | 15% |
+
+| Score | Color | Interpretación |
+|---|---|---|
+| ≤ 2.5 | Verde | Buena accesibilidad |
+| 2.5 – 3.5 | Amarillo | Accesibilidad media |
+| 3.5 – 4.5 | Naranja | Accesibilidad deficiente |
+| > 4.5 | Rojo | Accesibilidad crítica |
+
+---
+
+## Cómo funciona la geolocalización en móvil
+
+El WebView de React Native no expone `navigator.geolocation`. La solución:
+
+```
+expo-location (nativo)
+       ↓  injectJavaScript
+   WebView
+       ↓  CustomEvent 'native-location'
+   React → punto naranja en mapa
+```
+
+`mobile/App.js` obtiene las coordenadas y las inyecta:
+```js
+window.dispatchEvent(new CustomEvent('native-location', { detail: { lat, lng } }))
+```
+
+`src/App.jsx` las escucha y actualiza el marcador. En desktop usa `navigator.geolocation` como fallback.
+
+---
+
+## Estructura del frontend
+
+```
+src/
+├── App.jsx                # Layout, estado global, geolocalización
+├── config.js              # URL del backend
+├── index.css              # Sistema de diseño (naranja + blanco)
+└── components/
+    ├── MapView.jsx        # Mapa con capas GeoJSON y pins de incidentes
+    ├── NavigationView.jsx # Búsqueda origen/destino y visualización de ruta
+    ├── ChatView.jsx       # Asistente IA (sidebar)
+    ├── ColoniaDetail.jsx  # Panel de detalle de colonia
+    ├── DidYouKnow.jsx     # Carrusel de 50 datos curiosos sobre CDMX
+    ├── SidebarStats.jsx   # Estadísticas de accesibilidad
+    ├── ZonasRiesgo.jsx    # Lista de colonias con mayor riesgo
+    ├── LiquidGlass.jsx    # Filtros SVG y componente LiquidButton
+    └── Toast.jsx          # Notificaciones de error
+```
+
+---
+
+## Datos utilizados
+
+| Dataset | Fuente |
+|---|---|
+| Infraestructura peatonal y ciclista por colonia | Instituto de Planeación Democrática y Prospectiva, CDMX |
+| Niveles de accesibilidad de infraestructura | Datos Abiertos CDMX |
+| Estadísticas de movilidad | TomTom 2024 · SEMOVI 2025 · INEGI · STC Metro |
+
+Los shapefiles originales no se incluyen por tamaño. El GeoJSON procesado (`back/tlalpan_accesibilidad.geojson`) sí está incluido.
+
+---
+
+## Consideraciones éticas
+
+- Datos agregados por colonia — nunca por individuo
+- Sin recolección de ubicaciones ni datos de usuarios
+- Las descripciones de IA son orientativas, no diagnósticos técnicos
+- Zonas periféricas pueden estar subrepresentadas en los datos fuente
 
 ---
 
 ## Equipo
 
 | Nombre | Rol |
-|--------|-----|
-|        |     |
-|        |     |
-|        |     |
+|---|---|
+| | |
+| | |
+| | |
 
----
-
-## Tecnologías
-
-| Capa | Stack |
-|------|-------|
-| Backend | FastAPI · GeoPandas · Shapely · Uvicorn |
-| IA | Groq API · `llama-3.1-8b-instant` |
-| Frontend | React 18 · Vite · react-map-gl · Mapbox GL JS |
-| Estilos | Tailwind CSS v3 |
-| Análisis de datos | Python · GeoPandas · Pandas |
-
----
-
-## Arquitectura
-
-Monorepo con dos carpetas independientes:
-
-```
-hackKS/
-├── back/               # API REST (FastAPI)
-│   ├── main.py         # Endpoints + llamada a Groq
-│   ├── analysis.py     # Procesamiento de shapefiles → GeoJSON
-│   ├── requirements.txt
-│   ├── .env.example
-│   └── tlalpan_accesibilidad.geojson   # Generado por analysis.py
-└── accesomov/          # Dashboard (React + Vite)
-    └── src/
-        ├── App.jsx
-        └── components/
-            ├── MapView.jsx       # Mapa Mapbox con polígonos
-            ├── SidebarStats.jsx  # Estadísticas agregadas
-            ├── ZonasRiesgo.jsx   # Lista colapsable de alto riesgo
-            ├── ColoniaDetail.jsx # Panel con descripción IA
-            └── Toast.jsx
-```
-
-El frontend consume la API en `http://localhost:8000`. No hay base de datos: los datos se cargan en memoria al iniciar el servidor desde el GeoJSON pre-procesado.
-
----
-
-## Cómo correr el backend
-
-```bash
-cd back
-pip install -r requirements.txt
-
-# Copia el ejemplo y agrega tu key de Groq
-cp .env.example .env
-# Edita .env: GROQ_API_KEY=gsk_...
-
-set -a && source .env && set +a
-uvicorn main:app --reload --port 8000
-```
-
-La API queda disponible en `http://localhost:8000`.  
-Documentación interactiva: `http://localhost:8000/docs`
-
-### Endpoints
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| GET | `/colonias` | GeoJSON completo (179 colonias de Tlalpan) |
-| GET | `/colonias/{cve_col}` | Detalle + descripción empática generada por IA |
-| GET | `/zonas-riesgo` | 108 colonias con score ≥ 4, con centroides |
-| GET | `/resumen` | Estadísticas agregadas |
-
----
-
-## Cómo correr el frontend
-
-```bash
-cd accesomov
-npm install
-npm run dev
-```
-
-La app queda disponible en `http://localhost:5173`.  
-Requiere que el backend esté corriendo en el puerto 8000.
-
----
-
-## Datos utilizados
-
-| Dataset | Fuente | Descripción |
-|---------|--------|-------------|
-| `esppub_ciclis_peat.shp` | Instituto de Planeación Democrática y Prospectiva (CDMX) | Infraestructura ciclista y accesibilidad peatonal por colonia |
-| `Dist_acce_infra.shp` | Instituto de Planeación Democrática y Prospectiva (CDMX) | Nivel de presencia de infraestructura peatonal por colonia (Alta/Media/Baja/Nula) |
-
-Ambos datasets cubren las 1,815 colonias de CDMX. El análisis filtra las **179 colonias de Tlalpan** y genera un score de accesibilidad del 1 al 5 combinando `INFRAPEAT` y `C_pEPICCAM`.
-
-Los datos crudos (shapefiles) no se incluyen en este repositorio por su tamaño. Están disponibles en el Portal de Datos Abiertos de la CDMX.
-
----
-
-## Consideraciones éticas
-
-- **Anonimización**: todos los datos están agregados por colonia, nunca por individuo. No se procesa ni almacena información personal.
-- **Sin recolección de datos de usuarios**: la aplicación no registra ubicaciones, identidades ni comportamiento de quienes la consultan.
-- **Fuentes gubernamentales públicas**: los datasets provienen del Portal de Datos Abiertos de la CDMX bajo licencia de uso libre.
-- **Sesgos identificados**: la cobertura de los datos es desigual — las zonas periféricas de Tlalpan (áreas rurales y pueblos originarios) tienen menor densidad de medición, lo que puede subestimar la problemática real en esas colonias. El score debe interpretarse como una aproximación, no como una verdad absoluta.
-- **Uso de IA**: las descripciones generadas por `llama-3.1-8b-instant` son orientativas y pueden contener imprecisiones. No sustituyen un diagnóstico técnico de infraestructura urbana.
+**Hack4Mobility 2025 · Tlalpan, CDMX**

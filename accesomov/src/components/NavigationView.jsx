@@ -1,9 +1,16 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import {
+  PersonStanding, Bike, Car, MapPin, X, Navigation,
+  Accessibility, Loader2, ArrowLeft, Search,
+  ShieldCheck, ShieldAlert, Clock, Route as RouteIcon, ArrowRight,
+} from 'lucide-react'
 import Map, { Source, Layer, Marker } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { API } from '../config'
+import { LiquidButton } from './LiquidGlass'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
-const API = 'http://localhost:8000'
 const INITIAL_VIEW = { longitude: -99.1332, latitude: 19.2954, zoom: 12 }
 
 const COLOR_EXPR = [
@@ -15,10 +22,30 @@ const COLOR_EXPR = [
 ]
 
 const MODES = [
-  { id: 'walking', icon: '🚶', label: 'Peatón',  profile: 'walking' },
-  { id: 'cycling', icon: '🚲', label: 'Ciclista', profile: 'cycling' },
-  { id: 'driving', icon: '🚗', label: 'Auto',     profile: 'driving-traffic' },
+  { id: 'walking', Icon: PersonStanding, label: 'Peatón',   profile: 'walking' },
+  { id: 'cycling', Icon: Bike,           label: 'Ciclista', profile: 'cycling' },
+  { id: 'driving', Icon: Car,            label: 'Auto',     profile: 'driving-traffic' },
 ]
+
+const SUGGESTIONS = [
+  'Centro de Tlalpan', 'Pedregal de San Ángel',
+  'Ciudad Universitaria', 'San Pedro Mártir', 'Coapa',
+]
+
+function formatDuration(min) {
+  if (min < 60) return `${min} min`
+  const h = Math.floor(min / 60), m = min % 60
+  return m > 0 ? `${h}h ${m}min` : `${h}h`
+}
+
+function routeSafety(colonias) {
+  if (!colonias?.length) return null
+  const avg = colonias.reduce((s, c) => s + c.score_accesibilidad, 0) / colonias.length
+  if (avg <= 2.5) return { label: 'Muy segura',   color: '#22c55e', Icon: ShieldCheck }
+  if (avg <= 3.5) return { label: 'Segura',        color: '#16a34a', Icon: ShieldCheck }
+  if (avg <= 4.2) return { label: 'Moderada',      color: '#d97706', Icon: ShieldAlert }
+  return             { label: 'Con riesgos',     color: '#ef4444', Icon: ShieldAlert }
+}
 
 function scoreColor(s) {
   if (s <= 2.5) return '#22c55e'
@@ -32,7 +59,7 @@ async function geocode(q) {
   try {
     const r = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json` +
-      `?proximity=-99.1332,19.2954&country=mx&language=es&limit=5&access_token=${MAPBOX_TOKEN}`
+      `?proximity=-99.1332,19.2954&country=mx&language=es&limit=6&access_token=${MAPBOX_TOKEN}`
     )
     return (await r.json()).features ?? []
   } catch { return [] }
@@ -44,417 +71,369 @@ async function fetchRoute(origin, dest, profile) {
     `${origin[0]},${origin[1]};${dest[0]},${dest[1]}` +
     `?geometries=geojson&overview=full&access_token=${MAPBOX_TOKEN}`
   )
-  return (await r.json()).routes?.[0] ?? null
+  if (!r.ok) throw new Error(`Error ${r.status}`)
+  const d = await r.json()
+  if (!d.routes?.length) throw new Error('Sin ruta disponible.')
+  return d.routes[0]
 }
 
-// Pin visible en el mapa con etiqueta A / B
-function MapPin({ letter, color }) {
+function RoutePin({ letter, color }) {
   return (
-    <div className="flex flex-col items-center" style={{ transform: 'translate(-50%, -100%)' }}>
-      <div
-        className="w-8 h-8 rounded-full border-2 border-white shadow-xl flex items-center justify-center text-white text-xs font-bold"
-        style={{ backgroundColor: color }}
-      >
+    <div style={{ transform: 'translate(-50%,-100%)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <div style={{ width: 36, height: 36, borderRadius: '50%', backgroundColor: color, border: '3px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 13, fontWeight: 900, boxShadow: '0 4px 12px rgba(0,0,0,0.25)' }}>
         {letter}
       </div>
-      <div
-        className="w-0 h-0"
-        style={{
-          borderLeft: '5px solid transparent',
-          borderRight: '5px solid transparent',
-          borderTop: `7px solid ${color}`,
-        }}
-      />
+      <div style={{ width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderTop: `9px solid ${color}` }} />
     </div>
   )
 }
 
-// Input en dos estados: buscando vs confirmado
-function PlaceInput({ label, letter, color, state, onChange, onSelect, onClear, debounceRef }) {
-  const [open, setOpen] = useState(false)
-  const isConfirmed = !!state.coords
+function SearchScreen({ label, letter, color, onConfirm, onBack }) {
+  const [text, setText] = useState('')
+  const [results, setRes] = useState([])
+  const [busy, setBusy] = useState(false)
+  const debounce = useRef(null)
+  const inputRef = useRef(null)
 
-  if (isConfirmed) {
-    return (
-      <div className="flex items-center gap-3 bg-gray-800/60 border border-gray-700 rounded-2xl px-4 py-3">
-        <div
-          className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 shadow-md"
-          style={{ backgroundColor: color }}
-        >
-          {letter}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-gray-500 leading-none mb-0.5 font-medium">{label}</p>
-          <p className="text-sm text-white font-semibold truncate">{state.shortName}</p>
-          <p className="text-[10px] text-gray-500 truncate">{state.subtitle}</p>
-        </div>
-        <button
-          onClick={onClear}
-          className="w-6 h-6 rounded-full bg-gray-700 hover:bg-gray-600 flex items-center justify-center text-gray-400 hover:text-white text-xs transition-colors flex-shrink-0"
-        >
-          ✕
-        </button>
-      </div>
-    )
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80) }, [])
+
+  const onChange = (val) => {
+    setText(val)
+    clearTimeout(debounce.current)
+    if (val.length >= 3) {
+      setBusy(true)
+      debounce.current = setTimeout(async () => { setRes(await geocode(val)); setBusy(false) }, 320)
+    } else { setRes([]) }
   }
 
   return (
-    <div className="relative">
-      <div className="flex items-center gap-3 bg-gray-800/60 border border-gray-700 focus-within:border-blue-500 rounded-2xl px-4 py-3 transition-colors">
-        <div
-          className="w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0"
-          style={{ borderColor: color, color }}
-        >
-          {letter}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-gray-500 leading-none mb-0.5 font-medium">{label}</p>
-          <input
-            type="text"
-            value={state.text}
-            onChange={e => {
-              onChange(e.target.value)
-              setOpen(true)
-              clearTimeout(debounceRef.current)
-              if (e.target.value.length >= 3) {
-                debounceRef.current = setTimeout(async () => {
-                  const features = await geocode(e.target.value)
-                  onChange(e.target.value, features)
-                }, 350)
-              } else {
-                onChange(e.target.value, [])
-              }
-            }}
-            onFocus={() => state.suggestions.length && setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder="Escribe una dirección…"
-            className="w-full bg-transparent text-sm text-white placeholder-gray-600 focus:outline-none"
+    <motion.div
+      initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }}
+      transition={{ type: 'spring', stiffness: 360, damping: 38 }}
+      style={{ position: 'absolute', inset: 0, zIndex: 100, background: '#fff', display: 'flex', flexDirection: 'column', paddingTop: 'var(--sat)' }}
+    >
+      <div style={{ padding: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+        <button onClick={onBack} style={{ width: 42, height: 42, borderRadius: 14, background: '#f2f2f7', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}>
+          <ArrowLeft size={18} color="#000" />
+        </button>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', background: '#f2f2f7', borderRadius: 14, border: `2px solid ${color}`, height: 48 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>
+            {letter}
+          </div>
+          <input ref={inputRef} value={text} onChange={e => onChange(e.target.value)}
+            placeholder={`¿${label}?`}
+            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#000', fontSize: 16, fontFamily: 'inherit' }}
           />
+          {text && <button onClick={() => { setText(''); setRes([]) }} style={{ cursor: 'pointer', background: 'none', border: 'none' }}><X size={16} color="#8e8e93" /></button>}
         </div>
-        {state.text && (
-          <button onClick={onClear} className="text-gray-600 hover:text-gray-300 text-xs transition-colors flex-shrink-0">✕</button>
+      </div>
+
+      <div style={{ height: 1, background: 'rgba(0,0,0,0.08)', margin: '12px 0 0' }} />
+
+      <div style={{ flex: 1, overflowY: 'auto' }} className="thin-scroll">
+        {busy && <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}><Loader2 size={22} color="#FF6600" className="animate-spin" /></div>}
+
+        {results.map((s, i) => (
+          <motion.button key={s.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.15, delay: i * 0.04 }}
+            onClick={() => onConfirm(s)}
+            style={{ width: '100%', textAlign: 'left', padding: '13px 20px', display: 'flex', gap: 14, alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', background: '#fff', border: 'none' }}
+          >
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: '#fff7ed', border: '1px solid #ffe4cc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <MapPin size={16} color="#FF6600" />
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.text}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.place_name.split(',').slice(1, 3).join(',')}</p>
+            </div>
+          </motion.button>
+        ))}
+
+        {!busy && text.length >= 3 && results.length === 0 && (
+          <p style={{ textAlign: 'center', color: '#8e8e93', fontSize: 14, padding: 28 }}>Sin resultados para "{text}"</p>
+        )}
+
+        {text.length < 3 && (
+          <div style={{ padding: '16px 20px' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Lugares en Tlalpan</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {SUGGESTIONS.map(s => (
+                <button key={s} onClick={() => onChange(s)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', background: '#f2f2f7', borderRadius: 14, textAlign: 'left', cursor: 'pointer', border: 'none' }}
+                >
+                  <Search size={15} color="#8e8e93" />
+                  <span style={{ fontSize: 14, color: '#000', fontWeight: 500 }}>{s}</span>
+                  <ArrowRight size={13} color="#c7c7cc" style={{ marginLeft: 'auto' }} />
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
-
-      {open && state.suggestions.length > 0 && (
-        <div className="absolute z-50 top-full mt-2 w-full bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
-          {state.suggestions.map((s, i) => (
-            <button
-              key={s.id}
-              onMouseDown={() => { onSelect(s); setOpen(false) }}
-              className="w-full text-left px-4 py-3 hover:bg-gray-800 border-b border-gray-800 last:border-0 transition-colors flex items-start gap-3"
-            >
-              <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs text-gray-400">📍</span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm text-white font-medium truncate">{s.text}</p>
-                <p className="text-[11px] text-gray-500 truncate mt-0.5">
-                  {s.place_name.split(',').slice(1, 3).join(',')}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
+    </motion.div>
   )
 }
 
-function Spinner() {
-  return (
-    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-    </svg>
-  )
-}
+const EMPTY = { shortName: '', coords: null }
 
-const EMPTY_PLACE = { text: '', shortName: '', subtitle: '', coords: null, suggestions: [] }
-
-export default function NavigationView({ geojson }) {
-  const mapRef    = useRef(null)
-  const debounceO = useRef(null)
-  const debounceD = useRef(null)
-
-  const [origin, setOrigin] = useState(EMPTY_PLACE)
-  const [dest,   setDest]   = useState(EMPTY_PLACE)
-  const [mode,   setMode]   = useState('walking')
-  const [route,  setRoute]  = useState(null)
-  const [result, setResult] = useState(null)
+export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0, onBack, userLocation }) {
+  const mapRef = useRef(null)
+  const [origin,  setOrigin]  = useState(EMPTY)
+  const [dest,    setDest]    = useState(EMPTY)
+  const [mode,    setMode]    = useState('walking')
+  const [route,   setRoute]   = useState(null)
+  const [result,  setResult]  = useState(null)
   const [loading, setLoading] = useState(false)
-  const [error,   setError]  = useState(null)
-
-  const selectPlace = useCallback((feature, setter) => {
-    setter({
-      text:        feature.place_name,
-      shortName:   feature.text,
-      subtitle:    feature.place_name.split(',').slice(1, 3).join(','),
-      coords:      feature.center,
-      suggestions: [],
-    })
-    setRoute(null)
-    setResult(null)
-    // Fly al punto seleccionado para confirmación visual inmediata
-    mapRef.current?.flyTo({ center: feature.center, zoom: 15, duration: 900 })
-  }, [])
-
-  const handleChangeOrigin = (text, suggestions) => {
-    setOrigin(p => ({ ...p, text, coords: null, suggestions: suggestions ?? p.suggestions }))
-  }
-  const handleChangeDest = (text, suggestions) => {
-    setDest(p => ({ ...p, text, coords: null, suggestions: suggestions ?? p.suggestions }))
-  }
-
-  const clearOrigin = () => { setOrigin(EMPTY_PLACE); setRoute(null); setResult(null) }
-  const clearDest   = () => { setDest(EMPTY_PLACE);   setRoute(null); setResult(null) }
+  const [error,   setError]   = useState(null)
+  const [search,  setSearch]  = useState(null)
 
   const handleRoute = async () => {
     if (!origin.coords || !dest.coords) return
-    setLoading(true)
-    setResult(null)
-    setError(null)
+    setLoading(true); setResult(null); setError(null)
     try {
       const profile = MODES.find(m => m.id === mode).profile
-      const mapboxRoute = await fetchRoute(origin.coords, dest.coords, profile)
-      if (!mapboxRoute) throw new Error('No se encontró una ruta entre estos puntos.')
-
-      const distKm = mapboxRoute.distance / 1000
-      const durMin = Math.round(mapboxRoute.duration / 60)
-      const coords = mapboxRoute.geometry.coordinates
-
-      setRoute({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: mapboxRoute.geometry }] })
-
-      const lngs = coords.map(c => c[0])
-      const lats = coords.map(c => c[1])
+      const r = await fetchRoute(origin.coords, dest.coords, profile)
+      const distKm = r.distance / 1000, durMin = Math.round(r.duration / 60)
+      const coords = r.geometry.coordinates
+      setRoute({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: r.geometry }] })
+      const lngs = coords.map(c => c[0]), lats = coords.map(c => c[1])
       mapRef.current?.fitBounds(
         [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
-        { padding: 80, duration: 1000 }
+        { padding: { top: 130, bottom: 260, left: 36, right: 36 }, duration: 1200 }
       )
-
       const res = await fetch(`${API}/ruta-analisis`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ coordinates: coords, modo: mode, distancia_km: parseFloat(distKm.toFixed(2)), duracion_min: durMin }),
       })
-      if (!res.ok) throw new Error(`Error del servidor (${res.status})`)
       const data = await res.json()
       setResult({ ...data, distancia_km: distKm, duracion_min: durMin })
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { setError(e.message) }
+    finally { setLoading(false) }
   }
 
+  const cancelRoute = () => { setRoute(null); setResult(null); setError(null) }
+  const hasRoute = !!result
+  const safety = hasRoute ? routeSafety(result.colonias) : null
+  const safeTop = topOffset > 0 ? `${topOffset}px` : 'calc(var(--sat) + 10px)'
+
   return (
-    <div className="flex flex-1 min-h-0">
+    <div style={{ position: 'absolute', inset: 0 }}>
 
-      {/* ── Panel izquierdo ── */}
-      <aside className="w-[340px] flex-shrink-0 flex flex-col bg-gray-950 border-r border-gray-800/60 overflow-y-auto sidebar-scroll">
-        <div className="p-5 space-y-4">
+      <Map ref={mapRef} mapboxAccessToken={MAPBOX_TOKEN} initialViewState={INITIAL_VIEW}
+        mapStyle="mapbox://styles/mapbox/light-v11"
+        style={{ width: '100%', height: '100%' }}
+      >
+        {geojson && (
+          <Source id="colonias" type="geojson" data={geojson}>
+            <Layer id="colonias-fill"    type="fill" paint={{ 'fill-color': COLOR_EXPR, 'fill-opacity': 0.35 }} />
+            <Layer id="colonias-outline" type="line" paint={{ 'line-color': 'rgba(0,0,0,0.1)', 'line-width': 0.5 }} />
+          </Source>
+        )}
+        {route && (
+          <Source id="route" type="geojson" data={route}>
+            <Layer id="route-case" type="line" paint={{ 'line-color': '#3d2ccc', 'line-width': 13 }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />
+            <Layer id="route-fill" type="line" paint={{ 'line-color': '#6c5ce7', 'line-width': 9  }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />
+          </Source>
+        )}
+        {origin.coords && <Marker longitude={origin.coords[0]} latitude={origin.coords[1]}><RoutePin letter="A" color="#22c55e" /></Marker>}
+        {dest.coords   && <Marker longitude={dest.coords[0]}   latitude={dest.coords[1]}><RoutePin letter="B" color="#ef4444" /></Marker>}
 
-          {/* Header */}
-          <div className="pb-1">
-            <h2 className="text-base font-bold text-white tracking-tight">Ruta accesible</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Planifica un viaje seguro en Tlalpan</p>
-          </div>
-
-          {/* Inputs con línea conectora */}
-          <div className="relative">
-            <PlaceInput
-              label="Origen" letter="A" color="#22c55e"
-              state={origin}
-              onChange={handleChangeOrigin}
-              onSelect={f => selectPlace(f, setOrigin)}
-              onClear={clearOrigin}
-              debounceRef={debounceO}
-            />
-            {/* Conector vertical */}
-            <div className="absolute left-[30px] top-[72px] w-[2px] h-4 bg-gray-700 z-10" />
-            <div className="h-3" />
-            <PlaceInput
-              label="Destino" letter="B" color="#ef4444"
-              state={dest}
-              onChange={handleChangeDest}
-              onSelect={f => selectPlace(f, setDest)}
-              onClear={clearDest}
-              debounceRef={debounceD}
-            />
-          </div>
-
-          {/* Modo de transporte */}
-          <div className="bg-gray-900 rounded-2xl p-1 flex gap-1">
-            {MODES.map(m => (
-              <button
-                key={m.id}
-                onClick={() => setMode(m.id)}
-                className={`flex-1 flex flex-col items-center gap-0.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
-                  mode === m.id
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                <span className="text-sm">{m.icon}</span>
-                <span>{m.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Botón */}
-          <button
-            onClick={handleRoute}
-            disabled={!origin.coords || !dest.coords || loading}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 disabled:bg-gray-800 disabled:text-gray-600 disabled:cursor-not-allowed text-white text-sm font-bold rounded-2xl transition-all flex items-center justify-center gap-2"
-          >
-            {loading ? <><Spinner /> Calculando ruta…</> : 'Calcular ruta'}
-          </button>
-
-          {/* Hint cuando no hay coords */}
-          {!origin.coords && !dest.coords && (
-            <p className="text-center text-xs text-gray-600">
-              Selecciona un origen y destino para comenzar
-            </p>
-          )}
-          {origin.coords && !dest.coords && (
-            <p className="text-center text-xs text-gray-500">
-              Ahora selecciona el destino
-            </p>
-          )}
-
-          {error && (
-            <div className="text-xs text-red-400 bg-red-950/30 border border-red-900/40 rounded-xl px-4 py-3">
-              {error}
+        {userLocation && (
+          <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
+            <div style={{ transform: 'translate(-50%,-50%)', position: 'relative' }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#FF6600', border: '3px solid white', boxShadow: '0 2px 8px rgba(255,102,0,0.5)', position: 'relative', zIndex: 1 }} />
+              <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', background: 'rgba(255,102,0,0.15)', animation: 'pulse 2s infinite' }} />
             </div>
-          )}
+          </Marker>
+        )}
+      </Map>
 
-          {/* Resultados */}
-          {result && (
-            <div className="space-y-3 pt-1">
-              <div className="h-px bg-gray-800" />
+      {onBack && (
+        <motion.button initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} whileTap={{ scale: 0.88 }}
+          onClick={onBack}
+          style={{ position: 'absolute', zIndex: 25, top: 'calc(var(--sat) + 14px)', left: 16, width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0,0,0,0.1)', boxShadow: '0 4px 16px rgba(0,0,0,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+        >
+          <ArrowLeft size={20} color="#000" />
+        </motion.button>
+      )}
 
-              {/* Métricas */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="bg-gray-900 rounded-2xl px-4 py-3 text-center">
-                  <p className="text-xl font-bold text-white tabular-nums">{result.distancia_km.toFixed(1)}<span className="text-sm font-normal text-gray-500 ml-1">km</span></p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">distancia</p>
+      <AnimatePresence>
+        {!hasRoute && (
+          <motion.div
+            initial={{ y: -70, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -70, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 340, damping: 38 }}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingTop: safeTop, paddingLeft: onBack ? 72 : 0, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 2px 16px rgba(0,0,0,0.08)' }}
+          >
+            <div style={{ padding: '0 16px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={() => setSearch('origin')}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#f2f2f7', borderRadius: 14, border: `1px solid ${origin.coords ? 'rgba(34,197,94,0.6)' : 'rgba(0,0,0,0.08)'}`, textAlign: 'left', cursor: 'pointer' }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>A</div>
+                <span style={{ flex: 1, fontSize: 15, color: origin.coords ? '#000' : '#aeaeb2', fontWeight: origin.coords ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {origin.shortName || '¿Dónde empiezas?'}
+                </span>
+                {origin.coords && <button onPointerDown={e => { e.stopPropagation(); setOrigin(EMPTY); cancelRoute() }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={14} color="#8e8e93" /></button>}
+              </button>
+              <div style={{ paddingLeft: 22 }}><div style={{ width: 2, height: 12, background: 'rgba(0,0,0,0.15)', borderRadius: 1 }} /></div>
+              <button onClick={() => setSearch('dest')}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#f2f2f7', borderRadius: 14, border: `1px solid ${dest.coords ? 'rgba(239,68,68,0.6)' : 'rgba(0,0,0,0.08)'}`, textAlign: 'left', cursor: 'pointer' }}
+              >
+                <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>B</div>
+                <span style={{ flex: 1, fontSize: 15, color: dest.coords ? '#000' : '#aeaeb2', fontWeight: dest.coords ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {dest.shortName || '¿A dónde vas?'}
+                </span>
+                {dest.coords && <button onPointerDown={e => { e.stopPropagation(); setDest(EMPTY); cancelRoute() }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={14} color="#8e8e93" /></button>}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {hasRoute && (
+          <motion.div
+            initial={{ y: -60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -60, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 340, damping: 38 }}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 20, paddingTop: 'var(--sat)', background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(0,0,0,0.08)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
+              <div style={{ width: 42, height: 42, borderRadius: 14, background: '#fff7ed', border: '1px solid #ffe4cc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Navigation size={18} color="#FF6600" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 10, fontWeight: 700, color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Llegando a</p>
+                <p style={{ fontSize: 15, fontWeight: 700, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{dest.shortName}</p>
+              </div>
+              {safety && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 20, background: `${safety.color}18`, border: `1px solid ${safety.color}40`, flexShrink: 0 }}>
+                  <safety.Icon size={12} color={safety.color} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: safety.color }}>{safety.label}</span>
                 </div>
-                <div className="bg-gray-900 rounded-2xl px-4 py-3 text-center">
-                  <p className="text-xl font-bold text-white tabular-nums">{result.duracion_min}<span className="text-sm font-normal text-gray-500 ml-1">min</span></p>
-                  <p className="text-[10px] text-gray-500 mt-0.5">tiempo estimado</p>
+              )}
+              <button onClick={cancelRoute} style={{ width: 36, height: 36, borderRadius: 12, background: '#fef2f2', border: '1px solid rgba(239,68,68,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <X size={15} color="#ef4444" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }}
+        style={{ position: 'absolute', left: 0, right: 0, zIndex: 20, bottom: `calc(var(--sab) + ${tabHeight}px)`, background: '#fff', borderTop: '1px solid rgba(0,0,0,0.08)', borderRadius: '24px 24px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.1)', maxHeight: hasRoute ? '54vh' : 'auto', overflowY: hasRoute ? 'auto' : 'visible' }}
+        className="thin-scroll"
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#c7c7cc' }} />
+        </div>
+
+        <div style={{ padding: '4px 16px 20px' }}>
+          {!hasRoute ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 6, padding: 4, background: '#f2f2f7', borderRadius: 18, border: '1px solid rgba(0,0,0,0.06)' }}>
+                {MODES.map(m => (
+                  <button key={m.id} onClick={() => setMode(m.id)}
+                    style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 10, paddingBottom: 10, borderRadius: 14, fontSize: 11, fontWeight: 700, cursor: 'pointer', color: mode === m.id ? '#fff' : '#8e8e93', overflow: 'hidden', border: 'none', background: 'transparent' }}
+                  >
+                    {mode === m.id && (
+                      <motion.div layoutId="mode-bg" style={{ position: 'absolute', inset: 0, borderRadius: 14, background: '#FF6600', boxShadow: '0 4px 12px rgba(255,102,0,0.35)' }} transition={{ type: 'spring', stiffness: 400, damping: 35 }} />
+                    )}
+                    <m.Icon size={18} style={{ position: 'relative', zIndex: 1 }} />
+                    <span style={{ position: 'relative', zIndex: 1 }}>{m.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              <LiquidButton onClick={handleRoute} disabled={!origin.coords || !dest.coords || loading}
+                style={{ width: '100%', padding: '15px 0', fontSize: 15, fontWeight: 800, background: (!origin.coords || !dest.coords || loading) ? '#e5e5ea' : '#FF6600', color: (!origin.coords || !dest.coords || loading) ? '#aeaeb2' : '#fff' }}
+              >
+                {loading ? <><Loader2 size={18} className="animate-spin" /> Calculando…</> : <><RouteIcon size={17} /> Calcular ruta accesible</>}
+              </LiquidButton>
+
+              {error && <p style={{ fontSize: 13, color: '#ef4444', padding: '10px 14px', background: '#fef2f2', borderRadius: 14, border: '1px solid rgba(239,68,68,0.2)' }}>{error}</p>}
+
+              {!origin.coords && (
+                <p style={{ textAlign: 'center', fontSize: 13, color: '#8e8e93', fontWeight: 500 }}>Toca los campos de arriba para buscar origen y destino</p>
+              )}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1, background: '#f2f2f7', borderRadius: 18, padding: '14px 16px', textAlign: 'center', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  <span style={{ fontSize: 28, fontWeight: 900, color: '#000', letterSpacing: '-0.04em', lineHeight: 1 }}>{formatDuration(result.duracion_min)}</span>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 4 }}>Tiempo estimado</p>
+                </div>
+                <div style={{ flex: 1, background: '#f2f2f7', borderRadius: 18, padding: '14px 16px', textAlign: 'center', border: '1px solid rgba(0,0,0,0.06)' }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 3 }}>
+                    <span style={{ fontSize: 28, fontWeight: 900, color: '#000', letterSpacing: '-0.04em', lineHeight: 1 }}>{result.distancia_km.toFixed(1)}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#8e8e93' }}>km</span>
+                  </div>
+                  <p style={{ fontSize: 10, fontWeight: 700, color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 4 }}>Distancia</p>
                 </div>
               </div>
 
-              {/* Análisis IA */}
-              {result.analisis_ia && (
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-600/20 flex items-center justify-center text-sm">♿</div>
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Análisis de accesibilidad</span>
+              {safety && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: `${safety.color}0e`, borderRadius: 16, border: `1px solid ${safety.color}25` }}>
+                  <safety.Icon size={18} color={safety.color} />
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: safety.color }}>Ruta {safety.label}</p>
+                    <p style={{ fontSize: 11, color: '#8e8e93', marginTop: 1 }}>Basado en scores de accesibilidad</p>
                   </div>
-                  <p className="text-xs text-gray-300 leading-relaxed">{result.analisis_ia}</p>
                 </div>
               )}
 
-              {/* Colonias */}
-              {result.colonias.length > 0 && (
+              {result.analisis_ia && (
+                <div style={{ background: '#fff7ed', borderRadius: 18, padding: 14, border: '1px solid #ffe4cc' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: '#fff7ed', border: '1px solid #ffe4cc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Accessibility size={13} color="#FF6600" />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#FF6600', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Análisis de accesibilidad</span>
+                  </div>
+                  <p style={{ fontSize: 13, lineHeight: 1.65, color: '#3c3c43' }}>{result.analisis_ia}</p>
+                </div>
+              )}
+
+              {result.colonias?.length > 0 && (
                 <div>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mb-2 px-1">
-                    {result.colonias.length} colonias en la ruta
-                  </p>
-                  <div className="space-y-1.5">
+                  <p style={{ fontSize: 10, fontWeight: 800, color: '#8e8e93', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>{result.colonias.length} colonias en la ruta</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     {result.colonias.map(c => (
-                      <div key={c.cve_col} className="flex items-center gap-3 bg-gray-900 rounded-xl px-3 py-2.5">
-                        <div
-                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: scoreColor(c.score_accesibilidad) }}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-white font-medium truncate">{c.colonia}</p>
-                          <p className="text-[10px] text-gray-500">{c.INFRAPEAT} peatonal</p>
+                      <div key={c.cve_col} style={{ background: '#f2f2f7', borderRadius: 14, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, border: '1px solid rgba(0,0,0,0.06)' }}>
+                        <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, backgroundColor: scoreColor(c.score_accesibilidad), boxShadow: `0 0 6px ${scoreColor(c.score_accesibilidad)}` }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.colonia}</p>
+                          <p style={{ fontSize: 11, color: '#8e8e93' }}>{c.INFRAPEAT} peatonal</p>
                         </div>
-                        <span className="text-xs font-bold tabular-nums" style={{ color: scoreColor(c.score_accesibilidad) }}>
-                          {c.score_accesibilidad}
-                        </span>
+                        <span style={{ fontSize: 15, fontWeight: 900, color: scoreColor(c.score_accesibilidad), flexShrink: 0 }}>{c.score_accesibilidad}</span>
                       </div>
                     ))}
                   </div>
                 </div>
               )}
+
+              <button onClick={cancelRoute} style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: '#f2f2f7', color: '#3c3c43', fontSize: 14, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(0,0,0,0.08)' }}>
+                Nueva ruta
+              </button>
             </div>
           )}
         </div>
-      </aside>
+      </motion.div>
 
-      {/* ── Mapa ── */}
-      <div className="flex-1 relative">
-        <div style={{ position: 'absolute', inset: 0 }}>
-          <Map
-            ref={mapRef}
-            mapboxAccessToken={MAPBOX_TOKEN}
-            initialViewState={INITIAL_VIEW}
-            mapStyle="mapbox://styles/mapbox/dark-v11"
-            style={{ width: '100%', height: '100%' }}
-          >
-            {/* Colonias accesibilidad */}
-            {geojson && (
-              <Source id="colonias" type="geojson" data={geojson}>
-                <Layer
-                  id="colonias-fill"
-                  type="fill"
-                  paint={{ 'fill-color': COLOR_EXPR, 'fill-opacity': 0.3 }}
-                />
-                <Layer
-                  id="colonias-outline"
-                  type="line"
-                  paint={{ 'line-color': 'rgba(255,255,255,0.07)', 'line-width': 0.5 }}
-                />
-              </Source>
-            )}
-
-            {/* Ruta */}
-            {route && (
-              <Source id="route" type="geojson" data={route}>
-                <Layer
-                  id="route-glow"
-                  type="line"
-                  paint={{ 'line-color': '#3b82f6', 'line-width': 14, 'line-blur': 10, 'line-opacity': 0.25 }}
-                  layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                />
-                <Layer
-                  id="route-line"
-                  type="line"
-                  paint={{ 'line-color': '#60a5fa', 'line-width': 4.5 }}
-                  layout={{ 'line-cap': 'round', 'line-join': 'round' }}
-                />
-              </Source>
-            )}
-
-            {/* Pin de origen — aparece apenas se selecciona */}
-            {origin.coords && (
-              <Marker longitude={origin.coords[0]} latitude={origin.coords[1]}>
-                <MapPin letter="A" color="#22c55e" />
-              </Marker>
-            )}
-
-            {/* Pin de destino — aparece apenas se selecciona */}
-            {dest.coords && (
-              <Marker longitude={dest.coords[0]} latitude={dest.coords[1]}>
-                <MapPin letter="B" color="#ef4444" />
-              </Marker>
-            )}
-          </Map>
-
-          {/* Hint inicial */}
-          {!origin.coords && !dest.coords && (
-            <div className="absolute bottom-5 left-1/2 -translate-x-1/2 pointer-events-none">
-              <div className="bg-gray-900/85 backdrop-blur-md text-gray-400 text-xs px-4 py-2 rounded-full border border-gray-700/60 whitespace-nowrap shadow-xl">
-                Ingresa una dirección de origen para comenzar
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+      <AnimatePresence>
+        {search === 'origin' && (
+          <SearchScreen key="so" label="Origen" letter="A" color="#22c55e"
+            onBack={() => setSearch(null)}
+            onConfirm={s => { setOrigin({ shortName: s.text, coords: s.center }); mapRef.current?.flyTo({ center: s.center, zoom: 14, duration: 800 }); setSearch(null) }}
+          />
+        )}
+        {search === 'dest' && (
+          <SearchScreen key="sd" label="Destino" letter="B" color="#ef4444"
+            onBack={() => setSearch(null)}
+            onConfirm={s => { setDest({ shortName: s.text, coords: s.center }); mapRef.current?.flyTo({ center: s.center, zoom: 14, duration: 800 }); setSearch(null) }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
