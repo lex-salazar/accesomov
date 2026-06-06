@@ -18,6 +18,9 @@ accesomov/.vite/
 # Datos crudos (shapefiles pesados)
 back/datos/
 
+# Grafos OSM cacheados (se regeneran al arrancar)
+back/*.graphml
+
 # Expo
 mobile/.expo/
 mobile/node_modules/

@@ -4,6 +4,7 @@ import {
   PersonStanding, Bike, Car, MapPin, X, Navigation,
   Accessibility, Loader2, ArrowLeft, Search,
   ShieldCheck, ShieldAlert, Clock, Route as RouteIcon, ArrowRight,
+  Leaf,
 } from 'lucide-react'
 import Map, { Source, Layer, Marker } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -176,37 +177,74 @@ function SearchScreen({ label, letter, color, onConfirm, onBack }) {
 
 const EMPTY = { shortName: '', coords: null }
 
+// 'mapbox' = ruta rápida (morada) | 'osm' = ruta accesible OSM (verde)
+const ROUTE_ENGINES = [
+  { id: 'osm',    label: 'Accesible',  sublabel: 'OSM + score', color: '#16a34a', Icon: Leaf },
+  { id: 'mapbox', label: 'Rápida',     sublabel: 'Mapbox',      color: '#6c5ce7', Icon: RouteIcon },
+]
+
 export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0, onBack, userLocation }) {
   const mapRef = useRef(null)
   const [origin,  setOrigin]  = useState(EMPTY)
   const [dest,    setDest]    = useState(EMPTY)
   const [mode,    setMode]    = useState('walking')
+  const [engine,  setEngine]  = useState('osm')
   const [route,   setRoute]   = useState(null)
   const [result,  setResult]  = useState(null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState(null)
   const [search,  setSearch]  = useState(null)
 
+  const routeColor = ROUTE_ENGINES.find(e => e.id === engine)?.color ?? '#6c5ce7'
+
   const handleRoute = async () => {
     if (!origin.coords || !dest.coords) return
     setLoading(true); setResult(null); setError(null)
     try {
-      const profile = MODES.find(m => m.id === mode).profile
-      const r = await fetchRoute(origin.coords, dest.coords, profile)
-      const distKm = r.distance / 1000, durMin = Math.round(r.duration / 60)
-      const coords = r.geometry.coordinates
-      setRoute({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: r.geometry }] })
+      let routeGeom, distKm, durMin, colonias, analisis_ia
+
+      if (engine === 'osm') {
+        // Ruta accesible via OSMnx
+        const res = await fetch(`${API}/ruta-osm`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            origin_lat: origin.coords[1], origin_lng: origin.coords[0],
+            dest_lat:   dest.coords[1],   dest_lng:   dest.coords[0],
+            modo: mode,
+          }),
+        })
+        if (!res.ok) throw new Error(`Error OSM ${res.status}: ${await res.text()}`)
+        const data = await res.json()
+        routeGeom = data.geometry
+        distKm    = data.properties.distancia_km
+        durMin    = data.properties.duracion_min
+        colonias  = data.properties.colonias
+        analisis_ia = data.properties.analisis_ia
+      } else {
+        // Ruta rápida via Mapbox Directions
+        const profile = MODES.find(m => m.id === mode).profile
+        const r = await fetchRoute(origin.coords, dest.coords, profile)
+        routeGeom = r.geometry
+        distKm    = r.distance / 1000
+        durMin    = Math.round(r.duration / 60)
+        const res = await fetch(`${API}/ruta-analisis`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ coordinates: routeGeom.coordinates, modo: mode, distancia_km: parseFloat(distKm.toFixed(2)), duracion_min: durMin }),
+        })
+        const data = await res.json()
+        colonias    = data.colonias
+        analisis_ia = data.analisis_ia
+      }
+
+      setRoute({ type: 'FeatureCollection', features: [{ type: 'Feature', geometry: routeGeom }] })
+      setResult({ colonias, analisis_ia, distancia_km: distKm, duracion_min: durMin })
+
+      const coords = routeGeom.coordinates
       const lngs = coords.map(c => c[0]), lats = coords.map(c => c[1])
       mapRef.current?.fitBounds(
         [[Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]],
         { padding: { top: 130, bottom: 260, left: 36, right: 36 }, duration: 1200 }
       )
-      const res = await fetch(`${API}/ruta-analisis`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ coordinates: coords, modo: mode, distancia_km: parseFloat(distKm.toFixed(2)), duracion_min: durMin }),
-      })
-      const data = await res.json()
-      setResult({ ...data, distancia_km: distKm, duracion_min: durMin })
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }
@@ -231,8 +269,14 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
         )}
         {route && (
           <Source id="route" type="geojson" data={route}>
-            <Layer id="route-case" type="line" paint={{ 'line-color': '#3d2ccc', 'line-width': 13 }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />
-            <Layer id="route-fill" type="line" paint={{ 'line-color': '#6c5ce7', 'line-width': 9  }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />
+            <Layer id="route-case" type="line"
+              paint={{ 'line-color': routeColor, 'line-width': 13, 'line-opacity': 0.35 }}
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            />
+            <Layer id="route-fill" type="line"
+              paint={{ 'line-color': routeColor, 'line-width': 9 }}
+              layout={{ 'line-cap': 'round', 'line-join': 'round' }}
+            />
           </Source>
         )}
         {origin.coords && <Marker longitude={origin.coords[0]} latitude={origin.coords[1]}><RoutePin letter="A" color="#22c55e" /></Marker>}
@@ -330,6 +374,20 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
         <div style={{ padding: '4px 16px 20px' }}>
           {!hasRoute ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+              {/* Selector de engine: OSM accesible vs Mapbox rápida */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {ROUTE_ENGINES.map(eng => (
+                  <button key={eng.id} onClick={() => setEngine(eng.id)}
+                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '10px 8px', borderRadius: 14, cursor: 'pointer', border: `2px solid ${engine === eng.id ? eng.color : 'rgba(0,0,0,0.08)'}`, background: engine === eng.id ? `${eng.color}12` : '#f2f2f7', transition: 'all 0.15s' }}
+                  >
+                    <eng.Icon size={18} color={engine === eng.id ? eng.color : '#8e8e93'} />
+                    <span style={{ fontSize: 12, fontWeight: 700, color: engine === eng.id ? eng.color : '#8e8e93' }}>{eng.label}</span>
+                    <span style={{ fontSize: 10, color: '#aeaeb2' }}>{eng.sublabel}</span>
+                  </button>
+                ))}
+              </div>
+
               <div style={{ display: 'flex', gap: 6, padding: 4, background: '#f2f2f7', borderRadius: 18, border: '1px solid rgba(0,0,0,0.06)' }}>
                 {MODES.map(m => (
                   <button key={m.id} onClick={() => setMode(m.id)}
