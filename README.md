@@ -140,10 +140,28 @@ yarn start
 
 ## Variables de entorno
 
-| Archivo | Variable | Dónde obtenerla |
+| Archivo | Variable | Descripción |
 |---|---|---|
-| `back/.env` | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) → API Keys |
-| `accesomov/.env` | `VITE_MAPBOX_TOKEN` | [mapbox.com](https://account.mapbox.com) → Tokens |
+| `back/.env` | `GROQ_API_KEY` | API key de [Groq](https://console.groq.com) |
+| `accesomov/.env` | `VITE_MAPBOX_TOKEN` | Token de [Mapbox](https://account.mapbox.com) |
+| `accesomov/.env` | `VITE_API_URL` | URL del backend, ej. `http://192.168.0.x:8000` |
+
+En la misma red WiFi (para Expo Go), usa tu IP local en lugar de `localhost`:
+
+```bash
+# Obtener tu IP local en Mac
+ipconfig getifaddr en0
+```
+
+Copia el ejemplo y edita los valores:
+
+```bash
+cp accesomov/.env.example accesomov/.env
+# Agregar VITE_MAPBOX_TOKEN, VITE_API_URL
+
+cp back/.env.example back/.env
+# Agregar GROQ_API_KEY
+```
 
 ---
 
