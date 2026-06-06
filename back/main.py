@@ -8,6 +8,7 @@ Endpoints:
   GET  /zonas-riesgo       → Colonias con score >= 4, con centroide
   GET  /resumen            → Estadísticas agregadas
   POST /chat               → Chat conversacional con contexto de Tlalpan
+  POST /ruta-analisis      → Cruza una ruta con el GeoJSON y devuelve colonias + análisis IA
 """
 
 from contextlib import asynccontextmanager
@@ -18,6 +19,7 @@ from typing import List
 import groq
 import geopandas as gpd
 from fastapi import FastAPI, HTTPException
+from shapely.geometry import LineString
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -68,7 +70,7 @@ def _build_chat_system_prompt(gdf: gpd.GeoDataFrame) -> str:
 
     return f"""Eres un asistente de movilidad accesible para Tlalpan, CDMX.
 Ayudas a personas con movilidad reducida, silla de ruedas, adultos mayores y ciclistas.
-Responde en español, de forma empática y concreta. Máximo 4 oraciones por respuesta.
+Responde en español. Sé directo y breve: máximo 2 oraciones. Sin listas ni bullets.
 Nunca solicitas ni almacenas datos personales del usuario.
 
 DATOS DE TLALPAN (179 colonias, score 1=mejor, 5=peor):
@@ -335,7 +337,7 @@ async def chat(request: ChatRequest):
     try:
         response = await _client.chat.completions.create(
             model="llama-3.1-8b-instant",
-            max_tokens=600,
+            max_tokens=150,
             messages=[
                 {"role": "system", "content": _chat_system_prompt},
                 *[{"role": m.role, "content": m.content} for m in api_messages],
@@ -346,3 +348,57 @@ async def chat(request: ChatRequest):
         raise HTTPException(status_code=502, detail=f"Error en Groq API: {e.message}")
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ── Análisis de ruta ──────────────────────────────────────────────────────────
+
+class RouteAnalysisRequest(BaseModel):
+    coordinates: List[List[float]]  # [[lng, lat], ...]
+    modo: str                        # 'walking' | 'cycling' | 'driving'
+    distancia_km: float
+    duracion_min: int
+
+
+@app.post("/ruta-analisis", summary="Cruza una ruta Mapbox con el GeoJSON y devuelve colonias + análisis IA")
+async def ruta_analisis(req: RouteAnalysisRequest):
+    route_line = LineString(req.coordinates)
+    route_buffered = route_line.buffer(0.001)  # ~110 m de tolerancia
+
+    intersecting = _gdf[_gdf.geometry.intersects(route_buffered)].copy()
+    colonias = [
+        {
+            "cve_col": row["cve_col"],
+            "colonia": row["colonia"],
+            "score_accesibilidad": _safe_float(row["score_accesibilidad"]),
+            "nivel_acceso": row["nivel_acceso"],
+            "INFRAPEAT": row["INFRAPEAT"],
+        }
+        for _, row in intersecting.sort_values("score_accesibilidad").iterrows()
+    ]
+
+    modo_txt = {"walking": "a pie", "cycling": "en bicicleta", "driving": "en auto"}.get(req.modo, req.modo)
+    colonia_txt = ", ".join(
+        f"{c['colonia']} (score {c['score_accesibilidad']})"
+        for c in colonias[:5]
+    ) or "sin datos de colonias"
+
+    prompt = (
+        f"Ruta {modo_txt}: {req.distancia_km:.1f} km, {req.duracion_min} min. "
+        f"Colonias: {colonia_txt}. "
+        f"Responde en 1 sola oración corta: si es accesible y la precaución principal."
+    )
+
+    try:
+        response = await _client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            max_tokens=70,
+            messages=[
+                {"role": "system", "content": _SISTEMA_MOVILIDAD},
+                {"role": "user", "content": prompt},
+            ],
+        )
+        analisis = response.choices[0].message.content.strip()
+    except Exception:
+        analisis = ""
+
+    return {"colonias": colonias, "analisis_ia": analisis}

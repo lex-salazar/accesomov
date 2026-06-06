@@ -5,6 +5,7 @@ import ZonasRiesgo from './components/ZonasRiesgo'
 import ColoniaDetail from './components/ColoniaDetail'
 import Toast from './components/Toast'
 import ChatView from './components/ChatView'
+import NavigationView from './components/NavigationView'
 
 const API = 'http://localhost:8000'
 
@@ -107,6 +108,7 @@ export default function App() {
         <div className="flex rounded-lg bg-gray-800 p-0.5 gap-0.5">
           {[
             { id: 'map',  label: 'Mapa' },
+            { id: 'nav',  label: 'Navegación' },
             { id: 'chat', label: 'Asistente' },
           ].map(({ id, label }) => (
             <button
@@ -174,6 +176,9 @@ export default function App() {
               )}
             </div>
           </>
+        ) : view === 'nav' ? (
+          /* Vista navegación */
+          <NavigationView geojson={geojson} />
         ) : (
           /* Vista chat */
           <div className="flex flex-1 min-h-0 bg-gray-950">
