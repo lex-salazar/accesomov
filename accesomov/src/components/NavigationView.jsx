@@ -1,15 +1,16 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   PersonStanding, Bike, Car, MapPin, X, Navigation,
   Accessibility, Loader2, ArrowLeft, Search,
   ShieldCheck, ShieldAlert, Clock, Route as RouteIcon, ArrowRight,
-  Leaf,
+  Leaf, Mic, LocateFixed, ChevronRight, AlertTriangle,
 } from 'lucide-react'
 import Map, { Source, Layer, Marker } from 'react-map-gl'
 import 'mapbox-gl/dist/mapbox-gl.css'
 import { API } from '../config'
 import { LiquidButton } from './LiquidGlass'
+import { useVoice } from '../hooks/useVoice'
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
 const INITIAL_VIEW = { longitude: -99.1332, latitude: 19.2954, zoom: 12 }
@@ -55,15 +56,43 @@ function scoreColor(s) {
   return '#ef4444'
 }
 
-async function geocode(q) {
+// Session token fijo por sesión para Search Box API
+const SESSION_TOKEN = Math.random().toString(36).slice(2)
+
+async function geocode(q, userLoc) {
   if (q.length < 3) return []
+  const prox = userLoc ? `${userLoc.lng},${userLoc.lat}` : '-99.1332,19.2954'
   try {
+    // Search Box API — devuelve POIs, centros comerciales, calles, etc.
     const r = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json` +
-      `?proximity=-99.1332,19.2954&country=mx&language=es&limit=6&access_token=${MAPBOX_TOKEN}`
+      `https://api.mapbox.com/search/searchbox/v1/suggest?q=${encodeURIComponent(q)}` +
+      `&proximity=${prox}&country=mx&language=es&limit=8` +
+      `&session_token=${SESSION_TOKEN}&access_token=${MAPBOX_TOKEN}`
     )
-    return (await r.json()).features ?? []
+    const { suggestions = [] } = await r.json()
+    return suggestions
   } catch { return [] }
+}
+
+async function retrievePlace(mapbox_id) {
+  const r = await fetch(
+    `https://api.mapbox.com/search/searchbox/v1/retrieve/${mapbox_id}` +
+    `?session_token=${SESSION_TOKEN}&access_token=${MAPBOX_TOKEN}`
+  )
+  const { features = [] } = await r.json()
+  return features[0] ?? null
+}
+
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371000
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+}
+
+function formatDist(m) {
+  return m >= 1000 ? `${(m/1000).toFixed(1)} km` : `${Math.round(m/10)*10} m`
 }
 
 async function fetchRoute(origin, dest, profile) {
@@ -89,8 +118,8 @@ function RoutePin({ letter, color }) {
   )
 }
 
-function SearchScreen({ label, letter, color, onConfirm, onBack }) {
-  const [text, setText] = useState('')
+function SearchScreen({ label, letter, color, onConfirm, onBack, initialText = '', userLocation }) {
+  const [text, setText] = useState(initialText)
   const [results, setRes] = useState([])
   const [busy, setBusy] = useState(false)
   const debounce = useRef(null)
@@ -98,14 +127,26 @@ function SearchScreen({ label, letter, color, onConfirm, onBack }) {
 
   useEffect(() => { setTimeout(() => inputRef.current?.focus(), 80) }, [])
 
+  useEffect(() => {
+    if (initialText?.length >= 3) onChange(initialText)
+  }, [initialText])
+
   const onChange = (val) => {
     setText(val)
     clearTimeout(debounce.current)
     if (val.length >= 3) {
       setBusy(true)
-      debounce.current = setTimeout(async () => { setRes(await geocode(val)); setBusy(false) }, 320)
+      debounce.current = setTimeout(async () => {
+        setRes(await geocode(val, userLocation))
+        setBusy(false)
+      }, 320)
     } else { setRes([]) }
   }
+
+  // Voz dentro de la pantalla de búsqueda
+  const { recording: voiceRec, loading: voiceLoad, toggle: toggleVoice } = useVoice((texto) => {
+    onChange(texto)
+  })
 
   return (
     <motion.div
@@ -125,8 +166,31 @@ function SearchScreen({ label, letter, color, onConfirm, onBack }) {
             placeholder={`¿${label}?`}
             style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: '#000', fontSize: 16, fontFamily: 'inherit' }}
           />
-          {text && <button onClick={() => { setText(''); setRes([]) }} style={{ cursor: 'pointer', background: 'none', border: 'none' }}><X size={16} color="#8e8e93" /></button>}
+          {text
+            ? <button onClick={() => { setText(''); setRes([]) }} style={{ cursor: 'pointer', background: 'none', border: 'none' }}><X size={16} color="#8e8e93" /></button>
+            : null
+          }
         </div>
+
+        {/* Botón micrófono */}
+        <motion.button
+          whileTap={{ scale: 0.88 }}
+          onClick={toggleVoice}
+          animate={voiceRec ? { scale: [1, 1.1, 1] } : {}}
+          transition={{ repeat: Infinity, duration: 0.7 }}
+          style={{
+            width: 48, height: 48, borderRadius: 14, border: 'none', cursor: 'pointer', flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: voiceRec ? '#ef4444' : '#f2f2f7',
+            boxShadow: voiceRec ? '0 0 0 5px rgba(239,68,68,0.2)' : 'none',
+            transition: 'background 0.2s',
+          }}
+        >
+          {voiceLoad
+            ? <Loader2 size={18} color="#FF6600" className="animate-spin" />
+            : <Mic size={18} color={voiceRec ? '#fff' : '#8e8e93'} />
+          }
+        </motion.button>
       </div>
 
       <div style={{ height: 1, background: 'rgba(0,0,0,0.08)', margin: '12px 0 0' }} />
@@ -135,17 +199,24 @@ function SearchScreen({ label, letter, color, onConfirm, onBack }) {
         {busy && <div style={{ display: 'flex', justifyContent: 'center', padding: 28 }}><Loader2 size={22} color="#FF6600" className="animate-spin" /></div>}
 
         {results.map((s, i) => (
-          <motion.button key={s.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          <motion.button key={s.mapbox_id ?? i} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.15, delay: i * 0.04 }}
-            onClick={() => onConfirm(s)}
+            onClick={async () => {
+              setBusy(true)
+              const feat = await retrievePlace(s.mapbox_id)
+              setBusy(false)
+              if (!feat) return
+              const coords = feat.geometry.coordinates  // [lng, lat]
+              onConfirm({ text: s.name, center: coords, full_address: s.full_address })
+            }}
             style={{ width: '100%', textAlign: 'left', padding: '13px 20px', display: 'flex', gap: 14, alignItems: 'center', borderBottom: '1px solid rgba(0,0,0,0.06)', cursor: 'pointer', background: '#fff', border: 'none' }}
           >
             <div style={{ width: 40, height: 40, borderRadius: 12, background: '#fff7ed', border: '1px solid #ffe4cc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <MapPin size={16} color="#FF6600" />
             </div>
             <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.text}</p>
-              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.place_name.split(',').slice(1, 3).join(',')}</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: '#000', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</p>
+              <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.full_address ?? s.place_formatted ?? ''}</p>
             </div>
           </motion.button>
         ))}
@@ -183,17 +254,132 @@ const ROUTE_ENGINES = [
   { id: 'mapbox', label: 'Rápida',     sublabel: 'Mapbox',      color: '#6c5ce7', Icon: RouteIcon },
 ]
 
-export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0, onBack, userLocation }) {
-  const mapRef = useRef(null)
+export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0, onBack, userLocation, initialDest }) {
+  const mapRef         = useRef(null)
+  const navigatingRef  = useRef(false)   // ref para evitar stale closure en useEffect
   const [origin,  setOrigin]  = useState(EMPTY)
   const [dest,    setDest]    = useState(EMPTY)
   const [mode,    setMode]    = useState('walking')
   const [engine,  setEngine]  = useState('osm')
   const [route,   setRoute]   = useState(null)
   const [result,  setResult]  = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error,   setError]   = useState(null)
-  const [search,  setSearch]  = useState(null)
+  const [loading,    setLoading]    = useState(false)
+  const [error,      setError]      = useState(null)
+  const [navigating,     setNavigating]     = useState(false)
+  const [steps,          setSteps]          = useState([])
+  const [stepIdx,        setStepIdx]        = useState(0)
+  const [compassHeading, setCompassHeading] = useState(0)
+  const [search,         setSearch]         = useState(initialDest ? 'dest' : null)
+  const announcedRef = useRef(new Set())
+  const originManual    = useRef(false)
+  const prevHeading     = useRef(0)
+
+  const compassPoll = useRef(null)
+
+  // Brújula — polling de window.__compass (inyectado por expo-location watchHeadingAsync)
+  const startOrientListener = () => {
+    if (compassPoll.current) return
+    compassPoll.current = setInterval(() => {
+      const h = window.__compass
+      if (h == null) return
+      setCompassHeading(h)
+      if (Math.abs(h - prevHeading.current) < 2) return
+      prevHeading.current = h
+      mapRef.current?.easeTo({ bearing: h, duration: 200 })
+    }, 200)
+  }
+
+  const stopOrientListener = () => {
+    if (compassPoll.current) { clearInterval(compassPoll.current); compassPoll.current = null }
+  }
+
+  // Texto de dirección cardinal
+  const cardinalDir = (deg) => {
+    const dirs = ['N','NE','E','SE','S','SO','O','NO']
+    return dirs[Math.round(deg / 45) % 8]
+  }
+
+  // Sincronizar ref con state (evita stale closure)
+  useEffect(() => { navigatingRef.current = navigating }, [navigating])
+
+  // Modo navegación — enfocar cámara al iniciar
+  useEffect(() => {
+    if (!navigating || !userLocation) return
+    mapRef.current?.easeTo({
+      center:   [userLocation.lng, userLocation.lat],
+      pitch:    55,
+      zoom:     19,
+      duration: 800,
+      offset:   [0, 140],
+    })
+  }, [navigating])
+
+  // Seguir posición + anunciar giros
+  useEffect(() => {
+    if (!userLocation) return
+
+    // Centrar cámara — usa ref para no tener closure desactualizada
+    if (navigatingRef.current) {
+      mapRef.current?.easeTo({
+        center:   [userLocation.lng, userLocation.lat],
+        zoom:     19,
+        pitch:    55,
+        duration: 300,
+        offset:   [0, 140],
+      })
+    }
+
+    if (!navigatingRef.current) return
+
+    if (!steps.length) return
+
+    // Encontrar el step más cercano por delante
+    let nearest = stepIdx
+    let minDist = Infinity
+    for (let i = stepIdx; i < steps.length; i++) {
+      const loc = steps[i].maneuver.location   // [lng, lat]
+      const d = haversine(userLocation.lat, userLocation.lng, loc[1], loc[0])
+      if (d < minDist) { minDist = d; nearest = i }
+    }
+    if (nearest !== stepIdx) setStepIdx(nearest)
+
+    // Anunciar si estamos a ≤ 80m del próximo giro y no lo anunciamos aún
+    const next = steps[nearest + 1]
+    if (next && !announcedRef.current.has(nearest)) {
+      const loc = steps[nearest].maneuver.location
+      const dist = haversine(userLocation.lat, userLocation.lng, loc[1], loc[0])
+      if (dist <= 80) {
+        announcedRef.current.add(nearest)
+        const distTxt = formatDist(next.distance)
+        speak(`En ${distTxt}, ${next.maneuver.instruction}`)
+      }
+    }
+
+    // Llegada
+    if (dest.coords) {
+      const distDest = haversine(userLocation.lat, userLocation.lng, dest.coords[1], dest.coords[0])
+      if (distDest < 30 && !announcedRef.current.has('arrived')) {
+        announcedRef.current.add('arrived')
+        speak(`Llegaste a tu destino: ${dest.shortName}`)
+      }
+    }
+  }, [userLocation])
+
+  // Setear origen con ubicación actual (solo si el usuario no lo cambió a mano)
+  useEffect(() => {
+    if (!userLocation || originManual.current) return
+    const { lat, lng } = userLocation
+    fetch(
+      `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json` +
+      `?language=es&limit=1&types=address,neighborhood,locality,place&access_token=${MAPBOX_TOKEN}`
+    )
+      .then(r => r.json())
+      .then(d => {
+        const name = d.features?.[0]?.text || 'Mi ubicación'
+        setOrigin({ shortName: name, coords: [lng, lat] })
+      })
+      .catch(() => setOrigin({ shortName: 'Mi ubicación', coords: [lng, lat] }))
+  }, [userLocation])
 
   const routeColor = ROUTE_ENGINES.find(e => e.id === engine)?.color ?? '#6c5ce7'
 
@@ -249,7 +435,77 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
     finally { setLoading(false) }
   }
 
-  const cancelRoute = () => { setRoute(null); setResult(null); setError(null) }
+  const speak = (text) => {
+    if (!text) return
+    try {
+      // Nativo (Expo) — más fiable en WebView
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'SPEAK', text }))
+        return
+      }
+      // Fallback browser
+      window.speechSynthesis?.cancel()
+      const utt = new SpeechSynthesisUtterance(text)
+      utt.lang = 'es-MX'; utt.rate = 0.92
+      window.speechSynthesis?.speak(utt)
+    } catch {}
+  }
+
+  const stopSpeech = () => {
+    try {
+      if (window.ReactNativeWebView)
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'STOP_SPEECH' }))
+      else window.speechSynthesis?.cancel()
+    } catch {}
+  }
+
+  const cancelRoute = () => {
+    setRoute(null); setResult(null); setError(null); setNavigating(false)
+    stopOrientListener()
+    stopSpeech()
+    mapRef.current?.easeTo({ pitch: 0, bearing: 0, zoom: 12, duration: 600 })
+  }
+
+  const startNavigation = async () => {
+    startOrientListener()
+    setNavigating(true)
+    announcedRef.current = new Set()
+    setStepIdx(0)
+
+    // ── 1. Saludo ──
+    let greetingMs = 3000
+    if (result) {
+      const dist = result.distancia_km < 1
+        ? `${Math.round(result.distancia_km * 1000)} metros`
+        : `${result.distancia_km.toFixed(1)} kilómetros`
+      const durTxt = result.duracion_min === 1 ? '1 minuto' : `${result.duracion_min} minutos`
+      const greetText = `Hola! Vamos hacia ${dest.shortName}. Son ${dist}, aproximadamente ${durTxt}.`
+      speak(greetText)
+      // ~120ms por caracter a velocidad 0.85 + 2s de buffer
+      greetingMs = Math.max(6000, greetText.length * 120 + 2000)
+    }
+
+    // ── 2. Steps: anunciar primer giro después del saludo ──
+    try {
+      const profile = MODES.find(m => m.id === mode).profile
+      const r = await fetch(
+        `https://api.mapbox.com/directions/v5/mapbox/${profile}/` +
+        `${origin.coords[0]},${origin.coords[1]};${dest.coords[0]},${dest.coords[1]}` +
+        `?geometries=geojson&steps=true&language=es&banner_instructions=true` +
+        `&access_token=${MAPBOX_TOKEN}`
+      )
+      const data = await r.json()
+      const fetchedSteps = data.routes?.[0]?.legs?.[0]?.steps ?? []
+      setSteps(fetchedSteps)
+      // Hablar primer giro cuando termina el saludo
+      if (fetchedSteps.length > 1) {
+        const distTxt = formatDist(fetchedSteps[0].distance)
+        const instr   = fetchedSteps[1].maneuver.instruction
+        setTimeout(() => speak(`En ${distTxt}, ${instr}`), greetingMs)
+      }
+    } catch {}
+  }
+
   const hasRoute = !!result
   const safety = hasRoute ? routeSafety(result.colonias) : null
   const safeTop = topOffset > 0 ? `${topOffset}px` : 'calc(var(--sat) + 10px)'
@@ -258,7 +514,8 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
     <div style={{ position: 'absolute', inset: 0 }}>
 
       <Map ref={mapRef} mapboxAccessToken={MAPBOX_TOKEN} initialViewState={INITIAL_VIEW}
-        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapStyle="mapbox://styles/mapbox/streets-v12"
+        reuseMaps
         style={{ width: '100%', height: '100%' }}
       >
         {geojson && (
@@ -285,12 +542,155 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
         {userLocation && (
           <Marker longitude={userLocation.lng} latitude={userLocation.lat}>
             <div style={{ transform: 'translate(-50%,-50%)', position: 'relative' }}>
-              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#FF6600', border: '3px solid white', boxShadow: '0 2px 8px rgba(255,102,0,0.5)', position: 'relative', zIndex: 1 }} />
-              <div style={{ position: 'absolute', inset: -8, borderRadius: '50%', background: 'rgba(255,102,0,0.15)', animation: 'pulse 2s infinite' }} />
+              {/* Pulso exterior */}
+              <div style={{ position: 'absolute', inset: navigating ? -18 : -10, borderRadius: '50%',
+                background: navigating ? 'rgba(255,102,0,0.18)' : 'rgba(255,102,0,0.12)',
+                animation: 'pulse 2s infinite' }} />
+              {/* Punto */}
+              <div style={{
+                width: navigating ? 32 : 18,
+                height: navigating ? 32 : 18,
+                borderRadius: '50%',
+                background: '#FF6600',
+                border: `${navigating ? 4 : 3}px solid white`,
+                boxShadow: navigating
+                  ? '0 4px 20px rgba(255,102,0,0.7), 0 0 0 4px rgba(255,102,0,0.2)'
+                  : '0 2px 8px rgba(255,102,0,0.5)',
+                position: 'relative', zIndex: 1,
+              }} />
             </div>
           </Marker>
         )}
       </Map>
+
+      {/* ── UI de navegación activa (Waze style) ── */}
+      <AnimatePresence>
+        {navigating && result && (
+          <>
+            {/* Top bar — destino */}
+            <motion.div
+              initial={{ y: -80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -80, opacity: 0 }}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
+                paddingTop: 'calc(var(--sat) + 8px)', paddingLeft: 16, paddingRight: 16, paddingBottom: 12,
+                pointerEvents: 'none' }}
+            >
+              {/* ── Cuadro flotante de instrucción ── */}
+              <div style={{ background: 'rgba(10,10,10,0.94)', borderRadius: 24,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.45)', overflow: 'hidden', pointerEvents: 'auto' }}>
+
+                {/* Próxima instrucción */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px' }}>
+                  {/* Icono de dirección + brújula */}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                    <div style={{ width: 64, height: 64, borderRadius: 18, background: '#FF6600',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 4px 20px rgba(255,102,0,0.45)' }}>
+                      {/* Flecha rota según heading */}
+                      <div style={{ transform: `rotate(${compassHeading}deg)`, transition: 'transform 0.3s ease', display: 'flex' }}>
+                        <Navigation size={30} color="#fff" />
+                      </div>
+                    </div>
+                    {/* Cardinal */}
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#FF6600',
+                      background: 'rgba(255,102,0,0.15)', borderRadius: 8,
+                      padding: '2px 8px', letterSpacing: '0.05em' }}>
+                      {cardinalDir(compassHeading)}
+                    </span>
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Distancia grande */}
+                    <p style={{ fontSize: 32, fontWeight: 900, color: '#fff', lineHeight: 1,
+                      letterSpacing: '-0.03em' }}>
+                      {steps.length
+                        ? (steps[stepIdx + 1] ? formatDist(steps[stepIdx].distance) : 'Llegando')
+                        : `${result.duracion_min} min`}
+                    </p>
+                    {/* Instrucción */}
+                    <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.75)', marginTop: 4,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+                      {steps.length
+                        ? (steps[stepIdx + 1]?.maneuver?.instruction ?? `Llegando a ${dest.shortName}`)
+                        : `Hacia ${dest.shortName}`}
+                    </p>
+                  </div>
+
+                  <button onClick={cancelRoute}
+                    style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                      background: 'rgba(255,255,255,0.1)', border: 'none',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                    <X size={18} color="#fff" />
+                  </button>
+                </div>
+
+                {/* Barra inferior: distancia total + destino */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10,
+                  padding: '10px 18px 14px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', flexShrink: 0 }} />
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', fontWeight: 600,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {dest.shortName} · {result.distancia_km.toFixed(1)} km · {result.duracion_min} min
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Bottom bar — ETA + accesibilidad */}
+            <motion.div
+              initial={{ y: 120, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 120, opacity: 0 }}
+              style={{ position: 'absolute', bottom: `calc(var(--sab) + ${tabHeight}px)`,
+                left: 0, right: 0, zIndex: 30, background: 'rgba(20,20,20,0.92)',
+                backdropFilter: 'blur(16px)', borderTop: '1px solid rgba(255,255,255,0.08)',
+                borderRadius: '24px 24px 0 0', padding: '16px 20px' }}
+            >
+              {/* ETA pills */}
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <div style={{ flex: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 14,
+                  padding: '12px 14px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 24, fontWeight: 900, color: '#fff', lineHeight: 1,
+                    letterSpacing: '-0.03em' }}>{result.duracion_min}</p>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 700,
+                    textTransform: 'uppercase', marginTop: 3 }}>min</p>
+                </div>
+                <div style={{ flex: 1, background: 'rgba(255,255,255,0.08)', borderRadius: 14,
+                  padding: '12px 14px', textAlign: 'center' }}>
+                  <p style={{ fontSize: 24, fontWeight: 900, color: '#fff', lineHeight: 1,
+                    letterSpacing: '-0.03em' }}>{result.distancia_km.toFixed(1)}</p>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 700,
+                    textTransform: 'uppercase', marginTop: 3 }}>km</p>
+                </div>
+                {result.score_promedio && (
+                  <div style={{ flex: 1, background: `${scoreColor(result.score_promedio)}18`,
+                    border: `1px solid ${scoreColor(result.score_promedio)}40`,
+                    borderRadius: 14, padding: '12px 14px', textAlign: 'center' }}>
+                    <p style={{ fontSize: 24, fontWeight: 900,
+                      color: scoreColor(result.score_promedio), lineHeight: 1, letterSpacing: '-0.03em' }}>
+                      {result.score_promedio}
+                    </p>
+                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 700,
+                      textTransform: 'uppercase', marginTop: 3 }}>score</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Análisis IA */}
+              {result.analisis_ia && (
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.5,
+                  marginBottom: 12, borderLeft: '3px solid #FF6600', paddingLeft: 10 }}>
+                  {result.analisis_ia}
+                </p>
+              )}
+
+              <button onClick={cancelRoute}
+                style={{ width: '100%', padding: '13px 0', borderRadius: 14,
+                  background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                  color: '#ef4444', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                Terminar navegación
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {onBack && (
         <motion.button initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} whileTap={{ scale: 0.88 }}
@@ -302,7 +702,7 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
       )}
 
       <AnimatePresence>
-        {!hasRoute && (
+        {!hasRoute && !navigating && (
           <motion.div
             initial={{ y: -70, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -70, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 340, damping: 38 }}
@@ -312,10 +712,15 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
               <button onClick={() => setSearch('origin')}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: '#f2f2f7', borderRadius: 14, border: `1px solid ${origin.coords ? 'rgba(34,197,94,0.6)' : 'rgba(0,0,0,0.08)'}`, textAlign: 'left', cursor: 'pointer' }}
               >
-                <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>A</div>
+                <div style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: 11, fontWeight: 900, flexShrink: 0 }}>
+                  {userLocation && !origin.coords ? <Loader2 size={13} className="animate-spin" /> : 'A'}
+                </div>
                 <span style={{ flex: 1, fontSize: 15, color: origin.coords ? '#000' : '#aeaeb2', fontWeight: origin.coords ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {origin.shortName || '¿Dónde empiezas?'}
                 </span>
+                {origin.coords && origin.shortName === 'Mi ubicación' && (
+                  <LocateFixed size={13} color="#22c55e" style={{ flexShrink: 0 }} />
+                )}
                 {origin.coords && <button onPointerDown={e => { e.stopPropagation(); setOrigin(EMPTY); cancelRoute() }} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={14} color="#8e8e93" /></button>}
               </button>
               <div style={{ paddingLeft: 22 }}><div style={{ width: 2, height: 12, background: 'rgba(0,0,0,0.15)', borderRadius: 1 }} /></div>
@@ -334,7 +739,7 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
       </AnimatePresence>
 
       <AnimatePresence>
-        {hasRoute && (
+        {hasRoute && !navigating && (
           <motion.div
             initial={{ y: -60, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -60, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 340, damping: 38 }}
@@ -362,8 +767,9 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
         )}
       </AnimatePresence>
 
-      <motion.div
-        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.3 }}
+      <AnimatePresence>
+      {!navigating && <motion.div
+        initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }} transition={{ duration: 0.3 }}
         style={{ position: 'absolute', left: 0, right: 0, zIndex: 20, bottom: `calc(var(--sab) + ${tabHeight}px)`, background: '#fff', borderTop: '1px solid rgba(0,0,0,0.08)', borderRadius: '24px 24px 0 0', boxShadow: '0 -4px 24px rgba(0,0,0,0.1)', maxHeight: hasRoute ? '54vh' : 'auto', overflowY: hasRoute ? 'auto' : 'visible' }}
         className="thin-scroll"
       >
@@ -470,23 +876,51 @@ export default function NavigationView({ geojson, tabHeight = 68, topOffset = 0,
                 </div>
               )}
 
+              {!navigating ? (
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  onClick={startNavigation}
+                  style={{ width: '100%', padding: '15px 0', borderRadius: 16, background: '#FF6600', color: '#fff', fontSize: 15, fontWeight: 800, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 4px 16px rgba(255,102,0,0.35)' }}
+                >
+                  <Navigation size={18} />
+                  Iniciar navegación
+                </motion.button>
+              ) : (
+                <div style={{ padding: '12px 14px', background: '#f0fdf4', borderRadius: 14, border: '1px solid rgba(22,163,74,0.3)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#16a34a', animation: 'pulse 1.5s infinite', flexShrink: 0 }} />
+                  <div>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#16a34a' }}>Navegación activa</p>
+                    <p style={{ fontSize: 11, color: '#8e8e93' }}>Dirígete hacia {dest.shortName}</p>
+                  </div>
+                </div>
+              )}
+
               <button onClick={cancelRoute} style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: '#f2f2f7', color: '#3c3c43', fontSize: 14, fontWeight: 700, cursor: 'pointer', border: '1px solid rgba(0,0,0,0.08)' }}>
                 Nueva ruta
               </button>
             </div>
           )}
         </div>
-      </motion.div>
+      </motion.div>}
+      </AnimatePresence>
 
       <AnimatePresence>
         {search === 'origin' && (
           <SearchScreen key="so" label="Origen" letter="A" color="#22c55e"
+            userLocation={userLocation}
             onBack={() => setSearch(null)}
-            onConfirm={s => { setOrigin({ shortName: s.text, coords: s.center }); mapRef.current?.flyTo({ center: s.center, zoom: 14, duration: 800 }); setSearch(null) }}
+            onConfirm={s => {
+              originManual.current = true
+              setOrigin({ shortName: s.text, coords: s.center })
+              mapRef.current?.flyTo({ center: s.center, zoom: 14, duration: 800 })
+              setSearch(null)
+            }}
           />
         )}
         {search === 'dest' && (
           <SearchScreen key="sd" label="Destino" letter="B" color="#ef4444"
+            initialText={initialDest || ''}
+            userLocation={userLocation}
             onBack={() => setSearch(null)}
             onConfirm={s => { setDest({ shortName: s.text, coords: s.center }); mapRef.current?.flyTo({ center: s.center, zoom: 14, duration: 800 }); setSearch(null) }}
           />

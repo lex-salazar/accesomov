@@ -13,6 +13,7 @@ Endpoints:
 """
 
 from contextlib import asynccontextmanager
+import asyncio
 import math
 import os
 import json
@@ -22,7 +23,9 @@ import groq
 import geopandas as gpd
 import networkx as nx
 import osmnx as ox
-from fastapi import FastAPI, HTTPException
+import io
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from shapely.geometry import LineString, Point, mapping
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -98,26 +101,43 @@ def _assign_accessibility_weights(G: nx.MultiDiGraph, gdf: gpd.GeoDataFrame):
     """
     Añade `accessibility_cost` a cada arista del grafo.
     Costo = longitud × score de la colonia que contiene el punto medio del tramo.
-    Tramos sin colonia asignada usan score=3 (neutro).
+    Usa gpd.sjoin para asignación masiva en lugar de un loop por arista.
     """
     gdf_4326 = gdf.to_crs(epsg=4326) if gdf.crs.to_epsg() != 4326 else gdf
 
+    # Construir GeoDataFrame de puntos medios de todas las aristas
+    rows = []
     for u, v, key, data in G.edges(keys=True, data=True):
         if "geometry" in data:
-            midpoint = data["geometry"].interpolate(0.5, normalized=True)
+            mid = data["geometry"].interpolate(0.5, normalized=True)
         else:
-            mx = (G.nodes[u]["x"] + G.nodes[v]["x"]) / 2
-            my = (G.nodes[u]["y"] + G.nodes[v]["y"]) / 2
-            midpoint = Point(mx, my)
+            mid = Point(
+                (G.nodes[u]["x"] + G.nodes[v]["x"]) / 2,
+                (G.nodes[u]["y"] + G.nodes[v]["y"]) / 2,
+            )
+        rows.append({"u": u, "v": v, "key": key, "geometry": mid,
+                     "length": data.get("length", 50.0)})
 
-        hits = gdf_4326[gdf_4326.geometry.contains(midpoint)]
-        score = float(hits.iloc[0]["score_accesibilidad"]) if not hits.empty else 3.0
+    edges_gdf = gpd.GeoDataFrame(rows, crs="EPSG:4326")
 
-        length = data.get("length", 50.0)
-        # accessibility_cost penaliza tramos con peor accesibilidad
-        data["accessibility_cost"] = length * score
-        # también guardamos el score para consultas
-        data["score_colonia"] = score
+    # Spatial join masivo — cada punto medio hereda el score de su colonia
+    joined = gpd.sjoin(
+        edges_gdf[["u","v","key","length","geometry"]],
+        gdf_4326[["score_accesibilidad","geometry"]],
+        how="left",
+        predicate="within",
+    )
+    # Si hay duplicados (arista en borde de dos colonias), quedarnos con el primero
+    joined = joined[~joined.index.duplicated(keep="first")]
+
+    # Aplicar al grafo
+    for _, row in joined.iterrows():
+        score = float(row["score_accesibilidad"]) if not (row["score_accesibilidad"] != row["score_accesibilidad"]) else 3.0
+        length = row["length"]
+        G[row["u"]][row["v"]][row["key"]]["accessibility_cost"] = length * score
+        G[row["u"]][row["v"]][row["key"]]["score_colonia"] = score
+
+    print(f"  Pesos asignados: {len(joined)} aristas procesadas")
 
 
 def _load_or_download_graph(path: str, network_type: str) -> nx.MultiDiGraph:
@@ -137,17 +157,46 @@ def _load_or_download_graph(path: str, network_type: str) -> nx.MultiDiGraph:
     return G
 
 
+async def _load_osm_background():
+    """Carga/descarga los grafos OSM sin bloquear el arranque del servidor."""
+    global _G_walk, _G_bike
+    loop = asyncio.get_event_loop()
+    try:
+        # Ejecutar en thread para no bloquear el event loop
+        _G_walk = await loop.run_in_executor(None, _load_or_download_graph, GRAPH_WALK_PATH, "walk")
+        await loop.run_in_executor(None, _assign_accessibility_weights, _G_walk, _gdf)
+        if not os.path.exists(GRAPH_WALK_PATH):
+            await loop.run_in_executor(None, ox.io.save_graphml, _G_walk, GRAPH_WALK_PATH)
+        print(f"✓ Grafo peatonal listo: {len(_G_walk.nodes)} nodos, {len(_G_walk.edges)} aristas")
+
+        _G_bike = await loop.run_in_executor(None, _load_or_download_graph, GRAPH_BIKE_PATH, "bike")
+        await loop.run_in_executor(None, _assign_accessibility_weights, _G_bike, _gdf)
+        if not os.path.exists(GRAPH_BIKE_PATH):
+            await loop.run_in_executor(None, ox.io.save_graphml, _G_bike, GRAPH_BIKE_PATH)
+        print(f"✓ Grafo ciclista listo:  {len(_G_bike.nodes)} nodos, {len(_G_bike.edges)} aristas")
+
+    except Exception as e:
+        print(f"⚠ Grafos OSM no cargados: {e}")
+
+
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _gdf, _geojson_bytes, _client, _chat_system_prompt, _G_walk, _G_bike
 
-    # GeoJSON de colonias
+    # GeoJSON de colonias — simplificar polígonos para que cargue rápido en el mapa
     _gdf = gpd.read_file(GEOJSON_PATH)
-    _geojson_bytes = _gdf.to_json().encode()
+
+    gdf_simple = _gdf.copy()
+    gdf_simple.geometry = gdf_simple.geometry.simplify(tolerance=0.0003, preserve_topology=True)
+    _geojson_bytes = gdf_simple.to_json().encode()
+
+    original_kb = len(_gdf.to_json().encode()) // 1024
+    simple_kb   = len(_geojson_bytes) // 1024
+    print(f"✓ GeoJSON cargado: {len(_gdf)} colonias | {original_kb} KB → {simple_kb} KB (simplificado)")
+
     _chat_system_prompt = _build_chat_system_prompt(_gdf)
-    print(f"✓ GeoJSON cargado: {len(_gdf)} colonias")
 
     # Groq
     api_key = os.environ.get("GROQ_API_KEY")
@@ -155,22 +204,8 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("GROQ_API_KEY no está definida en el entorno")
     _client = groq.AsyncGroq(api_key=api_key)
 
-    # Grafos OSM
-    try:
-        _G_walk = _load_or_download_graph(GRAPH_WALK_PATH, "walk")
-        _assign_accessibility_weights(_G_walk, _gdf)
-        if not os.path.exists(GRAPH_WALK_PATH):
-            ox.io.save_graphml(_G_walk, filepath=GRAPH_WALK_PATH)
-        print(f"✓ Grafo peatonal: {len(_G_walk.nodes)} nodos, {len(_G_walk.edges)} aristas")
-
-        _G_bike = _load_or_download_graph(GRAPH_BIKE_PATH, "bike")
-        _assign_accessibility_weights(_G_bike, _gdf)
-        if not os.path.exists(GRAPH_BIKE_PATH):
-            ox.io.save_graphml(_G_bike, filepath=GRAPH_BIKE_PATH)
-        print(f"✓ Grafo ciclista:  {len(_G_bike.nodes)} nodos, {len(_G_bike.edges)} aristas")
-
-    except Exception as e:
-        print(f"⚠ Grafos OSM no disponibles: {e}. El endpoint /ruta-osm no funcionará.")
+    # Grafos OSM — cargar en background para no bloquear el arranque
+    asyncio.create_task(_load_osm_background())
 
     yield
     await _client.close()
@@ -480,6 +515,77 @@ async def ruta_osm(req: OsmRouteRequest):
             "analisis_ia":   analisis,
         },
     }
+
+
+@app.post("/transcribir", summary="Transcribe audio de voz a texto con Whisper (Groq)")
+async def transcribir(audio: UploadFile = File(...)):
+    content = await audio.read()
+    if len(content) < 500:
+        raise HTTPException(400, "Audio demasiado corto o vacío")
+    try:
+        transcription = await _client.audio.transcriptions.create(
+            file=(audio.filename or "audio.m4a", content, audio.content_type or "audio/m4a"),
+            model="whisper-large-v3-turbo",
+            language="es",
+            prompt="Nombre de colonia, calle o lugar en Tlalpan, Ciudad de México.",
+            response_format="json",
+        )
+        return {"texto": transcription.text.strip()}
+    except groq.APIError as e:
+        raise HTTPException(502, f"Error Whisper: {e.message}")
+    except Exception as e:
+        raise HTTPException(500, f"Error al transcribir: {e}")
+
+
+class AudioBase64Request(BaseModel):
+    audio_b64: str
+    mime: str = "audio/m4a"
+
+@app.post("/transcribir-b64", summary="Transcribe audio en base64 (usado por la app móvil)")
+async def transcribir_b64(req: AudioBase64Request):
+    import base64
+    try:
+        audio_bytes = base64.b64decode(req.audio_b64)
+    except Exception:
+        raise HTTPException(400, "audio_b64 inválido")
+    if len(audio_bytes) < 500:
+        raise HTTPException(400, "Audio demasiado corto")
+    try:
+        transcription = await _client.audio.transcriptions.create(
+            file=("audio.m4a", audio_bytes, req.mime),
+            model="whisper-large-v3-turbo",
+            language="es",
+            prompt="Habla en español. Colonia, calle o lugar en Tlalpan, Ciudad de México. Por ejemplo: Centro de Tlalpan, San Pedro Mártir, Pedregal de San Ángel.",
+            response_format="json",
+        )
+        return {"texto": transcription.text.strip()}
+    except groq.APIError as e:
+        raise HTTPException(502, f"Error Whisper: {e.message}")
+    except Exception as e:
+        raise HTTPException(500, f"Error al transcribir: {e}")
+
+
+@app.get("/tts", summary="Text-to-speech en español via gTTS")
+async def tts(text: str):
+    """Genera audio MP3. Trunca a 200 chars para evitar errores de gTTS."""
+    import asyncio
+    clean = text.strip()[:200]
+    if not clean:
+        raise HTTPException(400, "Texto vacío")
+    try:
+        from gtts import gTTS
+        loop = asyncio.get_event_loop()
+        def _gen():
+            t = gTTS(text=clean, lang="es", slow=False)
+            b = io.BytesIO()
+            t.write_to_fp(b)
+            b.seek(0)
+            return b
+        buf = await loop.run_in_executor(None, _gen)
+        return StreamingResponse(buf, media_type="audio/mpeg",
+                                 headers={"Cache-Control": "no-store"})
+    except Exception as e:
+        raise HTTPException(500, f"TTS error: {e}")
 
 
 @app.get("/osm-status", summary="Estado del grafo OSM cargado")

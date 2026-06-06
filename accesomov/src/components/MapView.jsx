@@ -38,14 +38,16 @@ const MapView = forwardRef(function MapView(
 
   const handleClick = useCallback(
     (event) => {
-      const feature = event.features?.[0]
+      // Filtrar explícitamente por la capa de colonias, ignorar calles/labels del mapa base
+      const feature = event.features?.find(f => f.layer?.id === 'colonias-fill')
       if (feature) onColoniaClick(feature.properties.cve_col)
     },
     [onColoniaClick]
   )
 
   const handleMouseMove = useCallback((event) => {
-    setCursor(event.features?.length > 0 ? 'pointer' : 'auto')
+    const hit = event.features?.some(f => f.layer?.id === 'colonias-fill')
+    setCursor(hit ? 'pointer' : 'auto')
   }, [])
 
   const handleMouseLeave = useCallback(() => setCursor('auto'), [])
@@ -57,23 +59,23 @@ const MapView = forwardRef(function MapView(
           ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
           initialViewState={INITIAL_VIEW}
-          mapStyle="mapbox://styles/mapbox/light-v11"
+          mapStyle="mapbox://styles/mapbox/streets-v12"
           interactiveLayerIds={geojson ? ['colonias-fill'] : []}
           onClick={handleClick}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           cursor={cursor}
+          reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
           {geojson && (
-            <Source id="colonias" type="geojson" data={geojson}>
-              {/* Relleno coloreado por score */}
+            <Source id="colonias" type="geojson" data={geojson} generateId>
               <Layer
                 id="colonias-fill"
                 type="fill"
                 paint={{
                   'fill-color': COLOR_EXPR,
-                  'fill-opacity': 0.7,
+                  'fill-opacity': 0.45,
                 }}
               />
               {/* Borde fino general */}

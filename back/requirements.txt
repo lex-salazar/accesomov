@@ -7,3 +7,5 @@ pyogrio>=0.7.0
 osmnx>=2.0.0
 networkx>=3.3
 scipy>=1.13.0
+scikit-learn>=1.4.0
+python-multipart>=0.0.9

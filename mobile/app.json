@@ -1,24 +1,29 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Alivía",
+    "slug": "alivia",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "mx.cdmx.alivia",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Alivía usa el micrófono para buscar destinos por voz.",
+        "NSLocationWhenInUseUsageDescription": "Alivía necesita tu ubicación para la navegación en tiempo real.",
+        "NSLocationAlwaysUsageDescription": "Alivía necesita tu ubicación para la navegación en tiempo real."
+      }
     },
     "android": {
+      "package": "mx.cdmx.alivia",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#0891b2",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
     }
   }
 }

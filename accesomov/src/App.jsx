@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Menu, X, Search, Mic, Clock,
-  Droplets, ShieldAlert, Shield, Car, Zap, Lightbulb,
+  Menu, X, Search, Mic, Clock, Loader2,
+  Droplets, ShieldAlert, Shield, Car, Zap,
   AlertTriangle, MessageSquare, Map, Navigation,
-  ChevronRight, Siren, HelpCircle, Info,
+  ChevronRight, Siren, Info,
 } from 'lucide-react'
 import { API } from './config'
+import { useVoice } from './hooks/useVoice'
 import MapView from './components/MapView'
 import ColoniaDetail from './components/ColoniaDetail'
 import Toast from './components/Toast'
@@ -85,6 +86,12 @@ export default function App() {
   const [incidentPins, setIncPins]     = useState([])
   const stopAlarm                      = useRef(null)
   const mapRef                         = useRef(null)
+  const [voiceText, setVoiceText]     = useState('')   // texto transcrito
+  const [voiceDestination, setVoiceDest] = useState(null)
+
+  const { recording: voiceRec, loading: voiceLoading, error: voiceError, start: startVoice, stop: stopVoice } = useVoice((texto) => {
+    setVoiceText(texto)
+  })
 
   const showToast = useCallback((msg) => setToast(msg), [])
 
@@ -148,11 +155,19 @@ export default function App() {
 
   const togglePanic = () => {
     if (panicActive) {
+      // Detener alarma
       stopAlarm.current?.()
       stopAlarm.current = null
       setPanic(false)
+      if (window.ReactNativeWebView)
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ALARM_STOP' }))
     } else {
-      stopAlarm.current = createAlarm()
+      // Iniciar alarma — nativo si está en Expo, Web Audio si está en browser
+      if (window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ALARM_START' }))
+      } else {
+        stopAlarm.current = createAlarm()
+      }
       setPanic(true)
     }
   }
@@ -192,7 +207,7 @@ export default function App() {
         {mode === 'home' ? (
           <MapView ref={mapRef} geojson={geojson} selectedCveCol={selectedCveCol} onColoniaClick={handleColoniaClick} incidents={incidentPins} userLocation={userLocation} />
         ) : (
-          <NavigationView geojson={geojson} tabHeight={0} topOffset={0} onBack={() => setMode('home')} userLocation={userLocation} />
+          <NavigationView geojson={geojson} tabHeight={0} topOffset={0} onBack={() => { setMode('home'); setVoiceDest(null) }} userLocation={userLocation} initialDest={voiceDestination} />
         )}
       </div>
 
@@ -234,11 +249,62 @@ export default function App() {
 
             <div style={{ padding: '0 16px 16px' }}>
               {/* Search → va a nav */}
-              <button onClick={() => setMode('nav')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: '#f2f2f7', borderRadius: 14, padding: '13px 16px', border: 'none', cursor: 'pointer', marginBottom: 14 }}>
-                <Search size={18} color="#8e8e93" />
-                <span style={{ flex: 1, textAlign: 'left', fontSize: 16, color: '#8e8e93' }}>¿A dónde vas?</span>
-                <Mic size={16} color="#c7c7cc" />
-              </button>
+              {/* Fila búsqueda + mic */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: voiceText ? 8 : 14 }}>
+                <button onClick={() => { setVoiceText(''); setMode('nav') }}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: '#f2f2f7', borderRadius: 14, padding: '13px 16px', border: 'none', cursor: 'pointer' }}>
+                  <Search size={18} color="#8e8e93" />
+                  <span style={{ flex: 1, textAlign: 'left', fontSize: 16, color: voiceText ? '#000' : '#8e8e93', fontWeight: voiceText ? 600 : 400 }}>
+                    {voiceLoading ? 'Escuchando…' : voiceRec ? 'Habla ahora…' : voiceText || '¿A dónde vas?'}
+                  </span>
+                  {voiceText && (
+                    <button onPointerDown={e => { e.stopPropagation(); setVoiceText('') }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2 }}>
+                      <X size={15} color="#aeaeb2" />
+                    </button>
+                  )}
+                </button>
+
+                <motion.button
+                  onPointerDown={startVoice}
+                  onPointerUp={stopVoice}
+                  onPointerLeave={stopVoice}
+                  animate={voiceRec ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+                  transition={{ repeat: Infinity, duration: 0.6 }}
+                  style={{
+                    width: 50, height: 50, borderRadius: 14, border: 'none', cursor: 'pointer', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: voiceRec ? '#ef4444' : voiceLoading ? '#f97316' : '#f2f2f7',
+                    boxShadow: voiceRec ? '0 0 0 6px rgba(239,68,68,0.18)' : 'none',
+                    transition: 'background 0.2s, box-shadow 0.2s',
+                  }}
+                >
+                  {voiceLoading
+                    ? <Loader2 size={20} color="#fff" className="animate-spin" />
+                    : <Mic size={20} color={voiceRec ? '#fff' : '#8e8e93'} />
+                  }
+                </motion.button>
+              </div>
+
+              {/* Error de voz */}
+              {voiceError && (
+                <p style={{ fontSize: 12, color: '#ef4444', padding: '6px 10px', background: '#fef2f2', borderRadius: 10, marginBottom: 8, textAlign: 'center' }}>
+                  {voiceError}
+                </p>
+              )}
+
+              {/* Botón "Ir" cuando hay texto transcrito */}
+              <AnimatePresence>
+                {voiceText && !voiceRec && !voiceLoading && (
+                  <motion.button
+                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}
+                    onClick={() => { setVoiceDest(voiceText); setMode('nav') }}
+                    style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: '#FF6600', color: '#fff', fontSize: 15, fontWeight: 800, border: 'none', cursor: 'pointer', marginBottom: 14, boxShadow: '0 4px 16px rgba(255,102,0,0.3)' }}
+                  >
+                    Ir a {voiceText}
+                  </motion.button>
+                )}
+              </AnimatePresence>
 
               {/* Quick actions */}
               <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
