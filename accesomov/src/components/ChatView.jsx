@@ -61,8 +61,8 @@ function Bubble({ msg, isFirst, onExampleClick, index }) {
             boxShadow: '0 4px 20px rgba(0,200,184,0.3)',
           } : {
             background: '#f2f2f7',
-            color: 'rgba(255,255,255,0.85)',
-            border: '1px solid rgba(255,255,255,0.07)',
+            color: '#1c1c1e',
+            border: '1px solid rgba(0,0,0,0.06)',
           }}
         >
           {msg.content}
@@ -191,7 +191,7 @@ export default function ChatView({ sidebar = false }) {
             onChange={e => setInput(e.target.value)}
             placeholder="Pregunta sobre movilidad en Tlalpan…"
             disabled={loading}
-            className="flex-1 wz-input px-4 py-3 text-white disabled:opacity-40"
+            className="flex-1 wf-input px-4 py-3 disabled:opacity-40"
             style={{ fontSize: '16px' }}
           />
           <motion.button

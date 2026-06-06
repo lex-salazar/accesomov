@@ -4,7 +4,8 @@ import { StyleSheet, View, ActivityIndicator } from 'react-native'
 import { WebView } from 'react-native-webview'
 import * as Location from 'expo-location'
 
-const DEV_URL = 'http://10.48.226.195:5173'
+// Cambia esta IP por la de tu máquina en la red local (ipconfig getifaddr en0)
+const DEV_URL = 'http://192.168.0.114:5173'
 
 export default function App() {
   const [loading, setLoading] = useState(true)
