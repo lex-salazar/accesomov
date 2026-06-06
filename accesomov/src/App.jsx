@@ -36,7 +36,7 @@ const MENU_ITEMS = [
   { Icon: Navigation,   label: 'Calcular ruta',          sub: 'Ruta accesible segura' },
   { Icon: MessageSquare,label: 'Asistente IA',           sub: 'Pregunta sobre movilidad', chat: true },
   { Icon: ShieldAlert,  label: 'Zonas de riesgo',        sub: 'Colonias con alto score' },
-  { Icon: Info,         label: 'Acerca de AccesoMov',    sub: 'Tlalpan · Hack4Mobility' },
+  { Icon: Info,         label: 'Acerca de Alivía',       sub: 'Tlalpan · Hack4Mobility', about: true },
 ]
 
 /* Genera alarma con Web Audio API */
@@ -77,6 +77,7 @@ export default function App() {
   const [mode, setMode]                = useState('home')
   const [sidebarOpen, setSidebar]      = useState(false)
   const [chatOpen, setChatOpen]        = useState(false)
+  const [aboutOpen, setAbout]          = useState(false)
   const [reportOpen, setReport]        = useState(false)
   const [selectedIncident, setIncident]= useState(null)
   const [incidentSent, setIncidentSent]= useState(false)
@@ -457,7 +458,7 @@ export default function App() {
                     <Map size={22} color="white" />
                   </div>
                   <div>
-                    <p style={{ fontSize: 18, fontWeight: 900, color: '#000', letterSpacing: '-0.03em' }}>AccesoMov</p>
+                    <p style={{ fontSize: 18, fontWeight: 900, color: '#000', letterSpacing: '-0.03em' }}>Alivía</p>
                     <p style={{ fontSize: 12, color: '#8e8e93', marginTop: 1 }}>Tlalpan · CDMX</p>
                   </div>
                 </div>
@@ -465,9 +466,9 @@ export default function App() {
 
               {/* Menu items */}
               <div style={{ flex: 1, padding: '8px 0', overflowY: 'auto' }} className="thin-scroll">
-                {MENU_ITEMS.map(({ Icon, label, sub, chat }) => (
+                {MENU_ITEMS.map(({ Icon, label, sub, chat, about }) => (
                   <button key={label}
-                    onClick={() => { setSidebar(false); if (chat) setChatOpen(true) }}
+                    onClick={() => { setSidebar(false); if (chat) setChatOpen(true); if (about) setAbout(true) }}
                     style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}
                   >
                     <div style={{ width: 40, height: 40, borderRadius: 12, background: '#fff7ed', border: '1px solid #ffe4cc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -492,6 +493,56 @@ export default function App() {
                     {panicActive ? 'Desactivar alarma' : 'Botón de pánico'}
                   </span>
                 </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── Acerca de ── */}
+      <AnimatePresence>
+        {aboutOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setAbout(false)}
+              style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }} />
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
+              transition={{ type: 'spring', stiffness: 340, damping: 38 }}
+              style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 51,
+                background: '#fff', borderRadius: '28px 28px 0 0',
+                paddingBottom: 'calc(var(--sab) + 24px)', overflow: 'hidden' }}>
+              {/* Handle */}
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+                <div style={{ width: 36, height: 4, borderRadius: 2, background: '#c7c7cc' }} />
+              </div>
+              {/* Header con ícono */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 24px 20px', borderBottom: '1px solid #f2f2f7' }}>
+                <div style={{ width: 80, height: 80, borderRadius: 22, overflow: 'hidden', background: '#f2f2f7', marginBottom: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
+                  <img src="/icon.png" alt="Alivía" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => { e.target.style.display='none' }} />
+                </div>
+                <h2 style={{ fontSize: 26, fontWeight: 900, color: '#000', letterSpacing: '-0.04em', marginBottom: 4 }}>Alivía</h2>
+                <p style={{ fontSize: 13, color: '#8e8e93', fontWeight: 500 }}>Movilidad accesible · Tlalpan, CDMX</p>
+              </div>
+              {/* Info */}
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {[
+                  { label: 'Versión', value: '1.0.0' },
+                  { label: 'Hackathon', value: 'Hack4Mobility 2025' },
+                  { label: 'Alcaldía', value: 'Tlalpan, CDMX' },
+                  { label: 'Colonias', value: '179 colonias mapeadas' },
+                  { label: 'Rutas', value: 'OSMnx · Mapbox Directions' },
+                  { label: 'IA', value: 'Groq llama3-70b · Whisper' },
+                  { label: 'TTS', value: 'Google gTTS vía backend' },
+                ].map(({ label, value }) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    padding: '12px 14px', background: '#f9f9f9', borderRadius: 14 }}>
+                    <span style={{ fontSize: 14, color: '#8e8e93', fontWeight: 500 }}>{label}</span>
+                    <span style={{ fontSize: 14, color: '#000', fontWeight: 700 }}>{value}</span>
+                  </div>
+                ))}
+                <p style={{ fontSize: 12, color: '#c7c7cc', textAlign: 'center', marginTop: 4 }}>
+                  Datos: IPDP CDMX · OpenStreetMap · Groq · Mapbox
+                </p>
               </div>
             </motion.div>
           </>
