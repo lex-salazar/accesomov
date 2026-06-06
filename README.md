@@ -33,7 +33,7 @@ accesomov/
 
 | Módulo | Descripción |
 |---|---|
-| Mapa de accesibilidad | 118 colonias de Tlalpan coloreadas por score (verde → rojo) |
+| Mapa de accesibilidad | 179 colonias de Tlalpan coloreadas por score (verde → rojo) |
 | Detalle de colonia | Infraestructura peatonal, ciclista, rampas, iluminación + análisis IA |
 | Rutas accesibles | Origen → destino con Mapbox Directions, evaluadas por zonas de riesgo |
 | Reportes ciudadanos | Inundación · zona insegura · operativo · tráfico · sin luz · peligro |
@@ -96,11 +96,6 @@ cp .env.example .env
 # Agregar: VITE_MAPBOX_TOKEN=pk.eyJ1...
 ```
 
-Editar la IP del backend en `src/config.js`:
-```js
-export const API = 'http://TU_IP_LOCAL:8000'
-```
-
 ```bash
 yarn dev
 ```
@@ -128,10 +123,28 @@ yarn start
 
 ## Variables de entorno
 
-| Archivo | Variable | Dónde obtenerla |
+| Archivo | Variable | Descripción |
 |---|---|---|
-| `back/.env` | `GROQ_API_KEY` | [console.groq.com](https://console.groq.com) → API Keys |
-| `accesomov/.env` | `VITE_MAPBOX_TOKEN` | [mapbox.com](https://account.mapbox.com) → Tokens |
+| `back/.env` | `GROQ_API_KEY` | API key de [Groq](https://console.groq.com) |
+| `accesomov/.env` | `VITE_MAPBOX_TOKEN` | Token de [Mapbox](https://account.mapbox.com) |
+| `accesomov/.env` | `VITE_API_URL` | URL del backend, ej. `http://192.168.0.x:8000` |
+
+En la misma red WiFi (para Expo Go), usa tu IP local en lugar de `localhost`:
+
+```bash
+# Obtener tu IP local en Mac
+ipconfig getifaddr en0
+```
+
+Copia el ejemplo y edita los valores:
+
+```bash
+cp accesomov/.env.example accesomov/.env
+# Agregar VITE_MAPBOX_TOKEN, VITE_API_URL
+
+cp back/.env.example back/.env
+# Agregar GROQ_API_KEY
+```
 
 ---
 
