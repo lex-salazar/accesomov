@@ -309,8 +309,8 @@ src/
 
 | Nombre | Rol |
 |---|---|
-| | |
-| | |
-| | |
+| Ximena Camarillo Morales | |
+| Alejandro Salazar Loza | |
+| David Antonio Zárate Villaseñor | |
 
 **Hack4Mobility 2025 · Tlalpan, CDMX**
