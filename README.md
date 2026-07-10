@@ -1,6 +1,6 @@
 <div align="center">
 
-<video src="assets/alivia.mp4" autoplay loop muted playsinline width="480"></video>
+<img src="assets/alivia.gif" alt="Alivía demo" width="480" />
 
 ### Movilidad urbana accesible para quienes más lo necesitan
 
