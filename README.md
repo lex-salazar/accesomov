@@ -1,61 +1,148 @@
-# Alivía
+<div align="center">
 
-> Movilidad urbana accesible en Tlalpan, CDMX — navegación por voz, mapa de accesibilidad, rutas seguras con IA y reportes ciudadanos en tiempo real.
+```
+  ___  _ _       _
+ / _ \| (_)_   _(_) __ _
+| | | | | \ \ / / |/ _` |
+| |_| | | |\ V /| | (_| |
+ \__,_|_|_| \_/ |_|\__,_|
+```
 
-![Stack](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react)
-![Stack](https://img.shields.io/badge/FastAPI-Python-009688?style=flat-square&logo=fastapi)
-![Stack](https://img.shields.io/badge/Expo-SDK%2054-000020?style=flat-square&logo=expo)
-![Stack](https://img.shields.io/badge/Mapbox-GL%20JS-4264FB?style=flat-square&logo=mapbox)
-![Stack](https://img.shields.io/badge/Groq-llama3--70b-F55036?style=flat-square)
-![Stack](https://img.shields.io/badge/OSMnx-2.x-green?style=flat-square)
+### Movilidad urbana accesible para quienes más lo necesitan
+
+*Navegación por voz · Rutas accesibles con IA · Reportes ciudadanos en tiempo real*
+
+**Hack4Mobility 2025 · Tlalpan, CDMX**
 
 ---
 
-## ¿Qué es Alivía?
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?style=flat-square&logo=fastapi)
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python)
+![Expo](https://img.shields.io/badge/Expo-SDK%2054-000020?style=flat-square&logo=expo)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker)
+![IBM Cloud](https://img.shields.io/badge/IBM%20Cloud-Code%20Engine-1261FE?style=flat-square&logo=ibm)
+![Mapbox](https://img.shields.io/badge/Mapbox-GL%20JS-4264FB?style=flat-square&logo=mapbox)
+![Groq](https://img.shields.io/badge/Groq-llama3--70b-F55036?style=flat-square)
+![OSMnx](https://img.shields.io/badge/OSMnx-2.x-green?style=flat-square)
+
+</div>
+
+---
+
+## Estado del proyecto
+
+| Hito | Estado |
+|---|---|
+| MVP funcional (Hack4Mobility) | ✅ Completo |
+| Containerización Docker + IBM Cloud Code Engine | ✅ Completo |
+| EAS Build — app nativa iOS/Android | 🚧 En progreso |
+| Persistencia de reportes ciudadanos | ✅ Completo |
+| Integración IBM watsonx.ai (Granite) | 🔜 Próximo |
+| Dashboard de analítica para IBM | 🔜 Próximo |
+| Deploy enterprise IBM Cloud | 🔜 Próximo |
+
+---
+
+## 🎯 Problemática — Los 5 Porqués
+
+> *¿Por qué las personas con movilidad reducida no pueden moverse con seguridad en Tlalpan?*
+
+| # | Pregunta | Respuesta |
+|---|---|---|
+| 1 | ¿Por qué no se mueven con seguridad? | Porque no saben qué calles, colonias o rutas son accesibles para ellas |
+| 2 | ¿Por qué no lo saben? | Porque no existe una herramienta que integre datos de infraestructura urbana con navegación en tiempo real |
+| 3 | ¿Por qué no existe esa herramienta? | Porque los datos abiertos de la ciudad están dispersos y sin procesar — nadie los ha convertido en algo accionable |
+| 4 | ¿Por qué nadie los ha procesado? | Porque requiere cruzar datos geoespaciales, modelos de IA y experiencia de usuario móvil al mismo tiempo |
+| 5 | ¿Por qué no se cruzan esas disciplinas? | Porque las soluciones de movilidad existentes priorizan velocidad sobre accesibilidad, ignorando a +30% de la población |
+
+**Causa raíz:** La infraestructura de datos existe pero está desconectada del ciudadano. Alivía cierra esa brecha.
+
+---
+
+## 👥 Stakeholders
+
+| Stakeholder | Rol | Qué gana con Alivía |
+|---|---|---|
+| **Personas con movilidad reducida** | Usuario primario | Navegación segura, rutas sin barreras, información real de su colonia |
+| **Adultos mayores y ciclistas** | Usuario secundario | Rutas optimizadas por seguridad, no solo por tiempo |
+| **Alcaldía Tlalpan / SEMOVI** | Gobierno | Datos ciudadanos para priorizar inversión en infraestructura |
+| **IBM** | Socio tecnológico / cliente enterprise | Dataset de accesibilidad única en LATAM + canal de adopción ciudadana |
+| **ONGs de accesibilidad urbana** | Aliado de difusión | Evidencia cuantitativa del estado de la infraestructura por colonia |
+| **Investigadores y urbanistas** | Usuario de datos | API pública con scores de accesibilidad y reportes ciudadanos geolocalizados |
+
+---
+
+## 🗺️ ¿Qué es Alivía?
 
 Alivía es una app móvil de navegación accesible para Tlalpan, CDMX. Ayuda a peatones, ciclistas y personas con movilidad reducida a moverse de forma segura usando datos abiertos de infraestructura urbana, inteligencia artificial y OpenStreetMap.
 
-**Hack4Mobility 2025 · CDMX**
+**179 colonias mapeadas · 18,000+ nodos de red vial · Análisis IA por colonia**
 
 ---
 
-## Arquitectura
+## 📱 Demo
+
+```
+┌─────────────────────────────┐
+│  🗺️  Mapa de accesibilidad  │
+│  ████████████████████████  │
+│  ██ verde = accesible  ███  │
+│  ██ rojo  = crítico    ███  │
+│  ████████████████████████  │
+│                             │
+│  ╔═══════════════════════╗  │
+│  ║  ¿A dónde vas?  🎙️   ║  │
+│  ╚═══════════════════════╝  │
+│  [ Reportar ] [ 🚨 Pánico ] │
+│                             │
+│  Zonas de riesgo            │
+│  • San Miguel Xicalco  5.0  │
+│  • La Fama             4.8  │
+└─────────────────────────────┘
+```
+
+> La app corre en iOS y Android vía Expo Go. El frontend web es accesible desde cualquier navegador moderno.
+
+---
+
+## ✨ Funcionalidades
+
+| Módulo | Descripción |
+|---|---|
+| 🗺️ Mapa de accesibilidad | Colonias coloreadas por score (verde → rojo) |
+| 🧭 Navegación Waze-style | Cámara sigue al usuario, brújula, pitch 3D |
+| ♿ Rutas accesibles OSMnx | Ponderadas por score de accesibilidad en cada tramo |
+| 🚗 Rutas rápidas Mapbox | Optimizadas por tiempo/distancia |
+| 🔊 Turn-by-turn por voz | Instrucciones en español via gTTS + expo-av |
+| 🎙️ Búsqueda por voz | Whisper (Groq) transcribe el destino hablado |
+| 🔍 Búsqueda de lugares | Mapbox Search Box API — POIs, calles, centros comerciales |
+| 📍 Origen automático | Se toma de tu ubicación GPS al abrir rutas |
+| ⚠️ Reportes ciudadanos | Inundación, zona insegura, operativo, tráfico, sin luz |
+| 🚨 Botón de pánico | Vibración + voz de alerta via expo-av |
+| 🤖 Asistente IA | Chat contextual sobre movilidad (Groq llama3-70b) |
+| 💡 Datos curiosos | 50 estadísticas de movilidad urbana CDMX |
+
+---
+
+## 🏗️ Arquitectura
 
 ```
 alivia/
 ├── accesomov/     ← Frontend   (Vite + React + Mapbox GL)
 ├── back/          ← Backend    (FastAPI + Groq + GeoPandas + OSMnx)
-└── mobile/        ← App móvil  (Expo SDK 54 + WebView)
+├── mobile/        ← App móvil  (Expo SDK 54 + WebView)
+├── docker-compose.yml          ← Stack completo local
+└── railway.toml                ← Deploy rápido
 ```
 
----
-
-## Funcionalidades
-
-| Módulo | Descripción |
-|---|---|
-| Mapa de accesibilidad | Colonias coloreadas por score (verde → rojo) |
-| Navegación Waze-style | Cámara sigue al usuario, brújula, pitch 3D |
-| Rutas accesibles OSMnx | Ponderadas por score de accesibilidad en cada tramo |
-| Rutas rápidas Mapbox | Optimizadas por tiempo/distancia |
-| Turn-by-turn por voz | Instrucciones en español via gTTS + expo-av |
-| Búsqueda por voz | Whisper (Groq) transcribe el destino hablado |
-| Búsqueda de lugares | Mapbox Search Box API — POIs, calles, centros comerciales |
-| Origen automático | Se toma de tu ubicación GPS al abrir rutas |
-| Reportes ciudadanos | Inundación, zona insegura, operativo, tráfico, sin luz |
-| Botón de pánico | Vibración + voz de alerta via expo-av |
-| Asistente IA | Chat contextual sobre movilidad (Groq llama3-70b) |
-| Datos curiosos | 50 estadísticas de movilidad urbana CDMX |
-
----
-
-## Stack tecnológico
+### Stack tecnológico
 
 | Capa | Tecnología |
 |---|---|
 | Frontend | Vite · React 18 · Tailwind CSS · Framer Motion |
 | Mapas | Mapbox GL JS · Mapbox Directions API · Mapbox Search Box API · react-map-gl |
-| Routing accesible | OSMnx 2.x · NetworkX · GeoPandas (accessibility_cost = distancia × score) |
+| Routing accesible | OSMnx 2.x · NetworkX · GeoPandas (`accessibility_cost = distancia × score`) |
 | Backend | FastAPI · Python 3.12 · GeoPandas · Shapely |
 | IA / NLP | Groq API (llama-3.3-70b) · Whisper large-v3-turbo |
 | TTS | gTTS (Google Text-to-Speech) vía backend |
@@ -64,7 +151,7 @@ alivia/
 
 ---
 
-## Instalación rápida
+## 🚀 Instalación rápida
 
 ### Requisitos
 
@@ -129,7 +216,7 @@ yarn start
 
 ---
 
-## Variables de entorno
+## 🔑 Variables de entorno
 
 | Archivo | Variable | Descripción |
 |---|---|---|
@@ -147,19 +234,15 @@ En la misma red WiFi (para Expo Go), usa tu IP local en lugar de `localhost`:
 ipconfig getifaddr en0
 ```
 
-Copia el ejemplo y edita los valores:
-
 ```bash
 cp accesomov/.env.example accesomov/.env
-# Agregar VITE_MAPBOX_TOKEN, VITE_API_URL
-
 cp back/.env.example back/.env
-# Agregar GROQ_API_KEY
+cp mobile/.env.example mobile/.env
 ```
 
 ---
 
-## Deploy en producción
+## 🐳 Deploy en producción
 
 El stack completo está containerizado y listo para IBM Cloud Code Engine.
 
@@ -174,7 +257,7 @@ docker compose up --build
 # Backend  → http://localhost:8000
 ```
 
-### IBM Cloud Code Engine (propuesta enterprise)
+### IBM Cloud Code Engine
 
 ```bash
 # Autenticarse
@@ -196,11 +279,11 @@ ibmcloud ce application create \
   --port 80
 ```
 
-> Las imágenes se publican en IBM Container Registry (`icr.io`). El backend de Code Engine escala a cero cuando no hay tráfico y soporta las regulaciones de datos de gobierno de CDMX requeridas para contratos con alcaldías.
+> Las imágenes se publican en IBM Container Registry (`icr.io`). Code Engine escala a cero cuando no hay tráfico y cumple con las regulaciones de datos de gobierno de CDMX requeridas para contratos con alcaldías.
 
 ---
 
-## Endpoints del backend
+## 🔌 Endpoints del backend
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -218,7 +301,9 @@ ibmcloud ce application create \
 
 ---
 
-## Cómo funciona el routing accesible (OSMnx)
+## ⚙️ Cómo funciona
+
+### Routing accesible (OSMnx)
 
 ```
 OSM (OpenStreetMap)
@@ -234,9 +319,7 @@ OSM (OpenStreetMap)
 
 A diferencia de Mapbox Directions (minimiza tiempo), OSMnx minimiza el **costo de accesibilidad**. Una calle de 200m en zona score=5 (crítica) cuesta 1000; en zona score=2 (buena) cuesta 400 — prefiere el segundo camino aunque sea más largo.
 
----
-
-## Cómo funciona la navegación por voz
+### Navegación por voz
 
 ```
 Usuario toca "Iniciar navegación"
@@ -244,17 +327,13 @@ Usuario toca "Iniciar navegación"
   startNavigation() → speak("Hola! Vamos hacia X...")
        ↓  gTTS genera MP3 en backend
   expo-av reproduce con playsInSilentModeIOS=true
-       ↓  (después del saludo)
-  speak("En 200m, gira a la derecha en...")
        ↓
   useEffect([userLocation]) detecta proximidad a giros
   → anuncia siguiente instrucción a ≤80m del punto
   → "Llegaste a X" al estar a ≤30m del destino
 ```
 
----
-
-## Cómo funciona la búsqueda por voz
+### Búsqueda por voz
 
 ```
 Mantén presionado el micrófono → expo-av graba M4A
@@ -266,9 +345,7 @@ Mantén presionado el micrófono → expo-av graba M4A
   Mapbox Search Box → coordenadas → ruta
 ```
 
----
-
-## Cómo funciona la geolocalización en móvil
+### Geolocalización en móvil
 
 `navigator.geolocation` no funciona en WebView. La solución:
 
@@ -285,20 +362,20 @@ expo-location (nativo)
 
 ---
 
-## Score de accesibilidad
+## 📊 Score de accesibilidad
 
 | Score | Color | Interpretación |
 |---|---|---|
-| ≤ 2.5 | Verde | Buena accesibilidad |
-| 2.5 – 3.5 | Amarillo | Media |
-| 3.5 – 4.5 | Naranja | Deficiente |
-| > 4.5 | Rojo | Crítica |
+| ≤ 2.5 | 🟢 Verde | Buena accesibilidad |
+| 2.5 – 3.5 | 🟡 Amarillo | Media |
+| 3.5 – 4.5 | 🟠 Naranja | Deficiente |
+| > 4.5 | 🔴 Rojo | Crítica |
 
 Calculado con: infraestructura peatonal (40%) · ciclista (25%) · iluminación (20%) · densidad vial (15%).
 
 ---
 
-## Estructura del frontend
+## 🗂️ Estructura del frontend
 
 ```
 src/
@@ -321,7 +398,7 @@ src/
 
 ---
 
-## Datos utilizados
+## 📂 Datos utilizados
 
 | Dataset | Fuente |
 |---|---|
@@ -331,7 +408,13 @@ src/
 
 ---
 
-## Roadmap IBM — Data Partnership
+<div align="center">
+
+## 🤝 Alivía × IBM — Data Partnership
+
+*Infraestructura citizen-first para ciudades inteligentes en LATAM*
+
+</div>
 
 Alivía fue construida como plataforma de recopilación de datos de movilidad ciudadana, con integración directa a los productos de IBM para ciudades inteligentes.
 
@@ -339,10 +422,10 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 
 | Activo | Descripción |
 |---|---|
-| Dataset de accesibilidad | 179 colonias de Tlalpan con scores calculados a partir de datos abiertos de infraestructura urbana |
-| Reportes ciudadanos geolocalizados | Inundaciones, zonas inseguras, operativos, cortes de luz — capturados en tiempo real por usuarios en campo |
-| Canal de adopción ciudadana | App funcional con UX probada en hackathon, escalable a más alcaldías |
-| Narrativa ESG | Accesibilidad para personas con movilidad reducida, adultos mayores y ciclistas — alineada con metas de impacto social de IBM |
+| 📍 Dataset de accesibilidad | 179 colonias de Tlalpan con scores calculados a partir de datos abiertos de infraestructura urbana |
+| 📡 Reportes ciudadanos geolocalizados | Inundaciones, zonas inseguras, operativos, cortes de luz — capturados en tiempo real por usuarios en campo |
+| 📲 Canal de adopción ciudadana | App funcional con UX probada en hackathon, escalable a más alcaldías |
+| 🌱 Narrativa ESG | Accesibilidad para personas con movilidad reducida, adultos mayores y ciclistas — alineada con metas de impacto social de IBM |
 
 ### Integración técnica con IBM
 
@@ -352,7 +435,7 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 | **IBM Environmental Intelligence Suite** | Enriquece los scores de colonia con datos de clima, inundación y calidad del aire en tiempo real |
 | **IBM Maximo Spatial** | Cruza los reportes ciudadanos con el inventario de infraestructura urbana de la alcaldía |
 | **IBM App ID** | Autenticación de usuarios para que los reportes sean auditables y atribuibles |
-| **IBM Cloud** | Hosting enterprise con cumplimiento de datos de gobierno — reemplaza Railway/Vercel |
+| **IBM Cloud Code Engine** | Hosting enterprise con cumplimiento de datos de gobierno — containerizado y listo |
 
 ### Qué falta para la siguiente conversación con IBM
 
@@ -371,7 +454,7 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 
 ---
 
-## Consideraciones éticas
+## ⚖️ Consideraciones éticas
 
 - Datos agregados por colonia — sin información personal
 - Sin recolección de ubicaciones ni seguimiento de usuarios
@@ -380,7 +463,9 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 
 ---
 
-## Equipo
+## 👥 Equipo
+
+<div align="center">
 
 | Nombre | Rol |
 |---|---|
@@ -389,3 +474,5 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 | David Antonio Zárate Villaseñor | |
 
 **Hack4Mobility 2025 · Tlalpan, CDMX**
+
+</div>

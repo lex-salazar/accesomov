@@ -33,6 +33,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Base de datos local (se crea al arrancar)
+back/alivia.db
+
 # Claude Code
 .claude/
 CLAUDE.md

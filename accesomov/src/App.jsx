@@ -6,7 +6,7 @@ import {
   AlertTriangle, MessageSquare, Map, Navigation,
   ChevronRight, Siren, Info,
 } from 'lucide-react'
-import { API } from './config'
+import { api } from './api'
 import { useVoice } from './hooks/useVoice'
 import MapView from './components/MapView'
 import ColoniaDetail from './components/ColoniaDetail'
@@ -16,11 +16,6 @@ import NavigationView from './components/NavigationView'
 import { GlassFilters } from './components/LiquidGlass'
 import DidYouKnow from './components/DidYouKnow'
 
-async function apiFetch(path) {
-  const res = await fetch(`${API}${path}`)
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
-  return res.json()
-}
 
 const INCIDENTS = [
   { id: 'flood',    Icon: Droplets,    label: 'Inundación',    color: '#3b82f6', bg: '#eff6ff' },
@@ -131,8 +126,8 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch('/colonias'),
-      apiFetch('/zonas-riesgo'),
+      api.colonias(),
+      api.zonasRiesgo(),
     ])
       .then(([gj, zonas]) => {
         setGeojson(gj)
@@ -146,7 +141,7 @@ export default function App() {
     if (cveCol === selectedCveCol && coloniaDetail) return
     setSelected(cveCol); setDetail(null); setDetailLoad(true)
     try {
-      const data = await apiFetch(`/colonias/${encodeURIComponent(cveCol)}`)
+      const data = await api.colonia(cveCol)
       setDetail(data)
     } catch (e) { showToast(`Error: ${e.message}`); setSelected(null) }
     finally { setDetailLoad(false) }
@@ -173,22 +168,16 @@ export default function App() {
     }
   }
 
-  const sendIncident = () => {
+  const sendIncident = async () => {
     if (!selectedIncident) return
     const inc = INCIDENTS.find(i => i.id === selectedIncident)
     const loc = userLocation ?? { lat: 19.2954, lng: -99.1332 }
-    // Offset pequeño aleatorio para que varios reportes no se apilen exactamente
-    const pin = {
-      id: Date.now(),
-      lat: loc.lat + (Math.random() - 0.5) * 0.0004,
-      lng: loc.lng + (Math.random() - 0.5) * 0.0004,
-      color: inc.color,
-      Icon: inc.Icon,
-      label: inc.label,
-    }
+    const lat = loc.lat + (Math.random() - 0.5) * 0.0004
+    const lng = loc.lng + (Math.random() - 0.5) * 0.0004
+    const pin = { id: Date.now(), lat, lng, color: inc.color, Icon: inc.Icon, label: inc.label }
     setIncPins(p => [...p, pin])
-    // Volar al pin en el mapa
-    mapRef.current?.flyTo(pin.lng, pin.lat)
+    mapRef.current?.flyTo(lng, lat)
+    api.postReporte({ tipo: selectedIncident, lat, lng }).catch(() => {})
     setIncidentSent(true)
     setTimeout(() => { setIncidentSent(false); setReport(false); setIncident(null) }, 1800)
   }
