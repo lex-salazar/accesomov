@@ -1,12 +1,6 @@
 <div align="center">
 
-```
- ___ _ _ _
- / _ \| (_)_ _(_) __ _
-| | | | | \ \ / / |/ _` |
-| |_| | | |\ V /| | (_| |
- \__,_|_|_| \_/ |_|\__,_|
-```
+<img src="accesomov/logo.png" alt="Alivía" width="160" />
 
 ### Movilidad urbana accesible para quienes más lo necesitan
 
