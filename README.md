@@ -1,8 +1,8 @@
 <div align="center">
 
 ```
-  ___  _ _       _
- / _ \| (_)_   _(_) __ _
+ ___ _ _ _
+ / _ \| (_)_ _(_) __ _
 | | | | | \ \ / / |/ _` |
 | |_| | | |\ V /| | (_| |
  \__,_|_|_| \_/ |_|\__,_|
@@ -34,17 +34,17 @@
 
 | Hito | Estado |
 |---|---|
-| MVP funcional (Hack4Mobility) | ✅ Completo |
-| Containerización Docker + IBM Cloud Code Engine | ✅ Completo |
-| EAS Build — app nativa iOS/Android | 🚧 En progreso |
-| Persistencia de reportes ciudadanos | ✅ Completo |
-| Integración IBM watsonx.ai (Granite) | 🔜 Próximo |
-| Dashboard de analítica para IBM | 🔜 Próximo |
-| Deploy enterprise IBM Cloud | 🔜 Próximo |
+| MVP funcional (Hack4Mobility) | Completo |
+| Containerización Docker + IBM Cloud Code Engine | Completo |
+| EAS Build — app nativa iOS/Android | En progreso |
+| Persistencia de reportes ciudadanos | Completo |
+| Integración IBM watsonx.ai (Granite) | Próximo |
+| Dashboard de analítica para IBM | Próximo |
+| Deploy enterprise IBM Cloud | Próximo |
 
 ---
 
-## 🎯 Problemática — Los 5 Porqués
+## Problemática — Los 5 Porqués
 
 > *¿Por qué las personas con movilidad reducida no pueden moverse con seguridad en Tlalpan?*
 
@@ -60,7 +60,7 @@
 
 ---
 
-## 👥 Stakeholders
+## Stakeholders
 
 | Stakeholder | Rol | Qué gana con Alivía |
 |---|---|---|
@@ -73,7 +73,7 @@
 
 ---
 
-## 🗺️ ¿Qué es Alivía?
+## ¿Qué es Alivía?
 
 Alivía es una app móvil de navegación accesible para Tlalpan, CDMX. Ayuda a peatones, ciclistas y personas con movilidad reducida a moverse de forma segura usando datos abiertos de infraestructura urbana, inteligencia artificial y OpenStreetMap.
 
@@ -81,59 +81,55 @@ Alivía es una app móvil de navegación accesible para Tlalpan, CDMX. Ayuda a p
 
 ---
 
-## 📱 Demo
+## Demo
 
 ```
-┌─────────────────────────────┐
-│  🗺️  Mapa de accesibilidad  │
-│  ████████████████████████  │
-│  ██ verde = accesible  ███  │
-│  ██ rojo  = crítico    ███  │
-│  ████████████████████████  │
-│                             │
-│  ╔═══════════════════════╗  │
-│  ║  ¿A dónde vas?  🎙️   ║  │
-│  ╚═══════════════════════╝  │
-│  [ Reportar ] [ 🚨 Pánico ] │
-│                             │
-│  Zonas de riesgo            │
-│  • San Miguel Xicalco  5.0  │
-│  • La Fama             4.8  │
-└─────────────────────────────┘
++-----------------------------+
+|  Mapa de accesibilidad      |
+|  [ verde = accesible      ] |
+|  [ rojo  = critico        ] |
+|                             |
+|  [ ? A donde vas?    [mic] ]|
+|  [ Reportar ] [ Panico    ] |
+|                             |
+|  Zonas de riesgo            |
+|  > San Miguel Xicalco  5.0  |
+|  > La Fama             4.8  |
++-----------------------------+
 ```
 
-> La app corre en iOS y Android vía Expo Go. El frontend web es accesible desde cualquier navegador moderno.
+> La app corre en iOS y Android via Expo Go. El frontend web es accesible desde cualquier navegador moderno.
 
 ---
 
-## ✨ Funcionalidades
+## Funcionalidades
 
 | Módulo | Descripción |
 |---|---|
-| 🗺️ Mapa de accesibilidad | Colonias coloreadas por score (verde → rojo) |
-| 🧭 Navegación Waze-style | Cámara sigue al usuario, brújula, pitch 3D |
-| ♿ Rutas accesibles OSMnx | Ponderadas por score de accesibilidad en cada tramo |
-| 🚗 Rutas rápidas Mapbox | Optimizadas por tiempo/distancia |
-| 🔊 Turn-by-turn por voz | Instrucciones en español via gTTS + expo-av |
-| 🎙️ Búsqueda por voz | Whisper (Groq) transcribe el destino hablado |
-| 🔍 Búsqueda de lugares | Mapbox Search Box API — POIs, calles, centros comerciales |
-| 📍 Origen automático | Se toma de tu ubicación GPS al abrir rutas |
-| ⚠️ Reportes ciudadanos | Inundación, zona insegura, operativo, tráfico, sin luz |
-| 🚨 Botón de pánico | Vibración + voz de alerta via expo-av |
-| 🤖 Asistente IA | Chat contextual sobre movilidad (Groq llama3-70b) |
-| 💡 Datos curiosos | 50 estadísticas de movilidad urbana CDMX |
+| Mapa de accesibilidad | Colonias coloreadas por score (verde → rojo) |
+| Navegación Waze-style | Cámara sigue al usuario, brújula, pitch 3D |
+| Rutas accesibles OSMnx | Ponderadas por score de accesibilidad en cada tramo |
+| Rutas rápidas Mapbox | Optimizadas por tiempo/distancia |
+| Turn-by-turn por voz | Instrucciones en español via gTTS + expo-av |
+| Búsqueda por voz | Whisper (Groq) transcribe el destino hablado |
+| Búsqueda de lugares | Mapbox Search Box API — POIs, calles, centros comerciales |
+| Origen automático | Se toma de tu ubicación GPS al abrir rutas |
+| Reportes ciudadanos | Inundación, zona insegura, operativo, tráfico, sin luz |
+| Botón de pánico | Vibración + voz de alerta via expo-av |
+| Asistente IA | Chat contextual sobre movilidad (Groq llama3-70b) |
+| Datos curiosos | 50 estadísticas de movilidad urbana CDMX |
 
 ---
 
-## 🏗️ Arquitectura
+## Arquitectura
 
 ```
 alivia/
-├── accesomov/     ← Frontend   (Vite + React + Mapbox GL)
-├── back/          ← Backend    (FastAPI + Groq + GeoPandas + OSMnx)
-├── mobile/        ← App móvil  (Expo SDK 54 + WebView)
-├── docker-compose.yml          ← Stack completo local
-└── railway.toml                ← Deploy rápido
+ accesomov/ ← Frontend (Vite + React + Mapbox GL)
+ back/ ← Backend (FastAPI + Groq + GeoPandas + OSMnx)
+ mobile/ ← App móvil (Expo SDK 54 + WebView)
+ docker-compose.yml ← Stack completo local
+ railway.toml ← Deploy rápido
 ```
 
 ### Stack tecnológico
@@ -151,7 +147,7 @@ alivia/
 
 ---
 
-## 🚀 Instalación rápida
+## Instalación rápida
 
 ### Requisitos
 
@@ -216,7 +212,7 @@ yarn start
 
 ---
 
-## 🔑 Variables de entorno
+## Variables de entorno
 
 | Archivo | Variable | Descripción |
 |---|---|---|
@@ -242,19 +238,19 @@ cp mobile/.env.example mobile/.env
 
 ---
 
-## 🐳 Deploy en producción
+## Deploy en producción
 
 El stack completo está containerizado y listo para IBM Cloud Code Engine.
 
 ### Stack completo con Docker Compose
 
 ```bash
-cp back/.env.example back/.env        # GROQ_API_KEY + ALLOWED_ORIGINS
-cp accesomov/.env.example accesomov/.env  # VITE_MAPBOX_TOKEN
+cp back/.env.example back/.env # GROQ_API_KEY + ALLOWED_ORIGINS
+cp accesomov/.env.example accesomov/.env # VITE_MAPBOX_TOKEN
 
 docker compose up --build
 # Frontend → http://localhost:3000
-# Backend  → http://localhost:8000
+# Backend → http://localhost:8000
 ```
 
 ### IBM Cloud Code Engine
@@ -266,24 +262,24 @@ ibmcloud ce project create --name alivia-prod
 
 # Backend
 ibmcloud ce application create \
-  --name alivia-backend \
-  --image icr.io/alivia/backend:latest \
-  --port 8000 \
-  --env GROQ_API_KEY=<key> \
-  --env ALLOWED_ORIGINS=https://alivia-frontend.your-domain.com
+ --name alivia-backend \
+ --image icr.io/alivia/backend:latest \
+ --port 8000 \
+ --env GROQ_API_KEY=<key> \
+ --env ALLOWED_ORIGINS=https://alivia-frontend.your-domain.com
 
 # Frontend
 ibmcloud ce application create \
-  --name alivia-frontend \
-  --image icr.io/alivia/frontend:latest \
-  --port 80
+ --name alivia-frontend \
+ --image icr.io/alivia/frontend:latest \
+ --port 80
 ```
 
 > Las imágenes se publican en IBM Container Registry (`icr.io`). Code Engine escala a cero cuando no hay tráfico y cumple con las regulaciones de datos de gobierno de CDMX requeridas para contratos con alcaldías.
 
 ---
 
-## 🔌 Endpoints del backend
+## Endpoints del backend
 
 | Método | Ruta | Descripción |
 |---|---|---|
@@ -301,20 +297,20 @@ ibmcloud ce application create \
 
 ---
 
-## ⚙️ Cómo funciona
+## Cómo funciona
 
 ### Routing accesible (OSMnx)
 
 ```
 OSM (OpenStreetMap)
-       ↓ osmnx.graph_from_place("Tlalpan")
-  Red vial (18k nodos, 48k aristas)
-       ↓ gpd.sjoin (spatial join masivo)
-  Cada arista hereda score_colonia del GeoJSON
-       ↓ accessibility_cost = longitud × score
-  NetworkX shortest_path(weight="accessibility_cost")
-       ↓
-  Ruta que evita zonas sin rampas/banquetas
+ ↓ osmnx.graph_from_place("Tlalpan")
+ Red vial (18k nodos, 48k aristas)
+ ↓ gpd.sjoin (spatial join masivo)
+ Cada arista hereda score_colonia del GeoJSON
+ ↓ accessibility_cost = longitud × score
+ NetworkX shortest_path(weight="accessibility_cost")
+ ↓
+ Ruta que evita zonas sin rampas/banquetas
 ```
 
 A diferencia de Mapbox Directions (minimiza tiempo), OSMnx minimiza el **costo de accesibilidad**. Una calle de 200m en zona score=5 (crítica) cuesta 1000; en zona score=2 (buena) cuesta 400 — prefiere el segundo camino aunque sea más largo.
@@ -323,26 +319,26 @@ A diferencia de Mapbox Directions (minimiza tiempo), OSMnx minimiza el **costo d
 
 ```
 Usuario toca "Iniciar navegación"
-       ↓
-  startNavigation() → speak("Hola! Vamos hacia X...")
-       ↓  gTTS genera MP3 en backend
-  expo-av reproduce con playsInSilentModeIOS=true
-       ↓
-  useEffect([userLocation]) detecta proximidad a giros
-  → anuncia siguiente instrucción a ≤80m del punto
-  → "Llegaste a X" al estar a ≤30m del destino
+ ↓
+ startNavigation() → speak("Hola! Vamos hacia X...")
+ ↓ gTTS genera MP3 en backend
+ expo-av reproduce con playsInSilentModeIOS=true
+ ↓
+ useEffect([userLocation]) detecta proximidad a giros
+ → anuncia siguiente instrucción a ≤80m del punto
+ → "Llegaste a X" al estar a ≤30m del destino
 ```
 
 ### Búsqueda por voz
 
 ```
 Mantén presionado el micrófono → expo-av graba M4A
-       ↓ FileSystem.readAsStringAsync (base64)
-  POST /transcribir-b64 → Groq Whisper large-v3-turbo
-       ↓ language=es, prompt con contexto Tlalpan
-  Texto transcrito aparece en campo de búsqueda
-       ↓  Toca "Ir a X"
-  Mapbox Search Box → coordenadas → ruta
+ ↓ FileSystem.readAsStringAsync (base64)
+ POST /transcribir-b64 → Groq Whisper large-v3-turbo
+ ↓ language=es, prompt con contexto Tlalpan
+ Texto transcrito aparece en campo de búsqueda
+ ↓ Toca "Ir a X"
+ Mapbox Search Box → coordenadas → ruta
 ```
 
 ### Geolocalización en móvil
@@ -351,54 +347,54 @@ Mantén presionado el micrófono → expo-av graba M4A
 
 ```
 expo-location (nativo)
-  ├── watchPositionAsync → lat/lng cada 2s
-  └── watchHeadingAsync → heading magnético continuo
-       ↓  injectJavaScript
-  window.__nativeLocation = {lat, lng, heading}
-  window.__compass = degrees
-       ↓  CustomEvent / polling
-  React → punto naranja en mapa + rotación brújula
+ watchPositionAsync → lat/lng cada 2s
+ watchHeadingAsync → heading magnético continuo
+ ↓ injectJavaScript
+ window.__nativeLocation = {lat, lng, heading}
+ window.__compass = degrees
+ ↓ CustomEvent / polling
+ React → punto naranja en mapa + rotación brújula
 ```
 
 ---
 
-## 📊 Score de accesibilidad
+## Score de accesibilidad
 
 | Score | Color | Interpretación |
 |---|---|---|
-| ≤ 2.5 | 🟢 Verde | Buena accesibilidad |
-| 2.5 – 3.5 | 🟡 Amarillo | Media |
-| 3.5 – 4.5 | 🟠 Naranja | Deficiente |
-| > 4.5 | 🔴 Rojo | Crítica |
+| ≤ 2.5 | Verde | Buena accesibilidad |
+| 2.5 – 3.5 | Amarillo | Media |
+| 3.5 – 4.5 | Naranja | Deficiente |
+| > 4.5 | Rojo | Crítica |
 
 Calculado con: infraestructura peatonal (40%) · ciclista (25%) · iluminación (20%) · densidad vial (15%).
 
 ---
 
-## 🗂️ Estructura del frontend
+## Estructura del frontend
 
 ```
 src/
-├── App.jsx                # Layout, estado global, geolocalización, pánico
-├── config.js              # URL del backend
-├── index.css              # Sistema de diseño (naranja + blanco)
-├── hooks/
-│   └── useVoice.js        # Grabación de voz via canal nativo Expo
-└── components/
-    ├── MapView.jsx        # Mapa principal con capas GeoJSON
-    ├── NavigationView.jsx # Rutas, búsqueda, navegación Waze-style
-    ├── ChatView.jsx       # Asistente IA (sidebar)
-    ├── ColoniaDetail.jsx  # Panel de detalle de colonia
-    ├── DidYouKnow.jsx     # 50 datos curiosos sobre movilidad CDMX
-    ├── SidebarStats.jsx   # Estadísticas de accesibilidad
-    ├── ZonasRiesgo.jsx    # Lista de colonias de alto riesgo
-    ├── LiquidGlass.jsx    # Componente LiquidButton
-    └── Toast.jsx          # Notificaciones de error
+ App.jsx # Layout, estado global, geolocalización, pánico
+ config.js # URL del backend
+ index.css # Sistema de diseño (naranja + blanco)
+ hooks/
+ useVoice.js # Grabación de voz via canal nativo Expo
+ components/
+ MapView.jsx # Mapa principal con capas GeoJSON
+ NavigationView.jsx # Rutas, búsqueda, navegación Waze-style
+ ChatView.jsx # Asistente IA (sidebar)
+ ColoniaDetail.jsx # Panel de detalle de colonia
+ DidYouKnow.jsx # 50 datos curiosos sobre movilidad CDMX
+ SidebarStats.jsx # Estadísticas de accesibilidad
+ ZonasRiesgo.jsx # Lista de colonias de alto riesgo
+ LiquidGlass.jsx # Componente LiquidButton
+ Toast.jsx # Notificaciones de error
 ```
 
 ---
 
-## 📂 Datos utilizados
+## Datos utilizados
 
 | Dataset | Fuente |
 |---|---|
@@ -410,7 +406,7 @@ src/
 
 <div align="center">
 
-## 🤝 Alivía × IBM — Data Partnership
+## Alivía × IBM — Data Partnership
 
 *Infraestructura citizen-first para ciudades inteligentes en LATAM*
 
@@ -422,10 +418,10 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 
 | Activo | Descripción |
 |---|---|
-| 📍 Dataset de accesibilidad | 179 colonias de Tlalpan con scores calculados a partir de datos abiertos de infraestructura urbana |
-| 📡 Reportes ciudadanos geolocalizados | Inundaciones, zonas inseguras, operativos, cortes de luz — capturados en tiempo real por usuarios en campo |
-| 📲 Canal de adopción ciudadana | App funcional con UX probada en hackathon, escalable a más alcaldías |
-| 🌱 Narrativa ESG | Accesibilidad para personas con movilidad reducida, adultos mayores y ciclistas — alineada con metas de impacto social de IBM |
+| Dataset de accesibilidad | 179 colonias de Tlalpan con scores calculados a partir de datos abiertos de infraestructura urbana |
+| Reportes ciudadanos geolocalizados | Inundaciones, zonas inseguras, operativos, cortes de luz — capturados en tiempo real por usuarios en campo |
+| Canal de adopción ciudadana | App funcional con UX probada en hackathon, escalable a más alcaldías |
+| Narrativa ESG | Accesibilidad para personas con movilidad reducida, adultos mayores y ciclistas — alineada con metas de impacto social de IBM |
 
 ### Integración técnica con IBM
 
@@ -454,7 +450,7 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 
 ---
 
-## ⚖️ Consideraciones éticas
+## Consideraciones éticas
 
 - Datos agregados por colonia — sin información personal
 - Sin recolección de ubicaciones ni seguimiento de usuarios
@@ -463,7 +459,7 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 
 ---
 
-## 👥 Equipo
+## Equipo
 
 <div align="center">
 
