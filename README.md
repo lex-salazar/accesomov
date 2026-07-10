@@ -400,6 +400,59 @@ src/
 
 <div align="center">
 
+## Estrategia IBM — Impact vs. Effort Matrix
+
+Funcionalidades evaluadas por impacto ciudadano vs. esfuerzo de implementación:
+
+| Funcionalidad | Impacto | Esfuerzo | Decisión |
+|---|---|---|---|
+| Navegación por voz con rutas accesibles | Alto | Bajo | MVP |
+| Reportes ciudadanos geolocalizados | Alto | Bajo | MVP |
+| Mapa de accesibilidad por colonia | Alto | Bajo | MVP |
+| Asistente IA contextual | Alto | Medio | MVP |
+| Integración IBM watsonx.ai (Granite) | Alto | Medio | Fase 2 |
+| Dashboard analítica para alcaldía/IBM | Alto | Alto | Fase 2 |
+| Predicción de zonas de riesgo con ML | Alto | Alto | Fase 2 |
+| App nativa iOS/Android (EAS Build) | Medio | Medio | Fase 2 |
+| Integración transporte público CDMX | Bajo | Alto | Después |
+
+## Flujo de datos con IBM (Tech Mapping)
+
+```
+Usuario habla destino
+        |
+        v
+  [Whisper / Groq]           transcripcion de voz
+        |
+        v
+  [IBM API Connect]          gateway, autenticacion, rate limiting
+        |
+        v
+  [IBM Cloud Code Engine]    backend FastAPI + OSMnx
+        |          |
+        |          v
+        |   [watsonx.ai · Granite]     asistente IA + analisis de accesibilidad
+        |          |
+        |          v
+        |   [watsonx.governance]       monitoreo de sesgos del modelo
+        v
+  Ruta accesible calculada → Frontend React / App Expo
+        |
+        v
+  Reporte ciudadano generado
+        |
+        v
+  [IBM Cloud Object Storage]   persistencia de reportes + GeoJSON
+        |
+        v
+  [IBM Cognos Analytics]       dashboard para alcaldia Tlalpan / SEMOVI
+        |
+        v
+  [IBM Maximo Spatial]         gestion de infraestructura urbana (Fase 3)
+```
+
+---
+
 ## Alivía × IBM — Data Partnership
 
 *Infraestructura citizen-first para ciudades inteligentes en LATAM*
