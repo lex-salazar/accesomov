@@ -6,7 +6,7 @@
 
 *Navegación por voz · Rutas accesibles con IA · Reportes ciudadanos en tiempo real*
 
-**Hack4Mobility 2025 · Tlalpan, CDMX**
+**Hack4Mobility 2026 · Tlalpan, CDMX**
 
 ---
 
@@ -463,6 +463,6 @@ Alivía fue construida como plataforma de recopilación de datos de movilidad ci
 | Alejandro Salazar Loza | |
 | David Antonio Zárate Villaseñor | |
 
-**Hack4Mobility 2025 · Tlalpan, CDMX**
+**Hack4Mobility 2026 · Tlalpan, CDMX**
 
 </div>
