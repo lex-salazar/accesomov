@@ -46,7 +46,7 @@
 
 ## Problemática — Los 5 Porqués
 
-> *¿Por qué las personas con movilidad reducida no pueden moverse con seguridad en Tlalpan?*
+> *¿Por qué las personas no pueden moverse con seguridad en Tlalpan?*
 
 | # | Pregunta | Respuesta |
 |---|---|---|
