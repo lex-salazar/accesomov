@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "back/Dockerfile"
 
 [deploy]
-startCommand = "cd back && uvicorn main:app --host 0.0.0.0 --port $PORT"
+startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/resumen"
 healthcheckTimeout = 120
 restartPolicyType = "on_failure"
