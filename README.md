@@ -410,8 +410,8 @@ Funcionalidades evaluadas por impacto ciudadano vs. esfuerzo de implementación:
 | Reportes ciudadanos geolocalizados | Alto | Bajo | MVP |
 | Mapa de accesibilidad por colonia | Alto | Bajo | MVP |
 | Asistente IA contextual | Alto | Medio | MVP |
-| Integración IBM watsonx.ai (Granite) | Alto | Medio | Fase 2 |
-| Dashboard analítica para alcaldía/IBM | Alto | Alto | Fase 2 |
+| Integración IBM watsonx.ai (Granite) | Alto | Medio | MVP |
+| Dashboard analítica para alcaldía/IBM | Alto | Medio | Fase 2 |
 | Predicción de zonas de riesgo con ML | Alto | Alto | Fase 2 |
 | App nativa iOS/Android (EAS Build) | Medio | Medio | Fase 2 |
 | Integración transporte público CDMX | Bajo | Alto | Después |
