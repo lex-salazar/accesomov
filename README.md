@@ -61,7 +61,7 @@
 | **Personas con movilidad reducida** | Usuario primario | Navegación segura, rutas sin barreras, información real de su colonia |
 | **Adultos mayores y ciclistas** | Usuario secundario | Rutas optimizadas por seguridad, no solo por tiempo |
 | **Alcaldía Tlalpan / SEMOVI** | Gobierno | Datos ciudadanos para priorizar inversión en infraestructura |
-| **IBM** | Socio tecnológico / cliente enterprise | Dataset de accesibilidad única en LATAM + canal de adopción ciudadana |
+| **IBM** | Socio tecnológico / cliente enterprise | Caso de uso de IA y Smart Cities, analítica geoespacial y solución escalable para gobiernos |
 | **ONGs de accesibilidad urbana** | Aliado de difusión | Evidencia cuantitativa del estado de la infraestructura por colonia |
 | **Investigadores y urbanistas** | Usuario de datos | API pública con scores de accesibilidad y reportes ciudadanos geolocalizados |
 
