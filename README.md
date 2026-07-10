@@ -107,11 +107,6 @@ cp .env.example .env
 # Agregar: VITE_MAPBOX_TOKEN=pk.eyJ1...
 ```
 
-Editar IP del backend en `src/config.js`:
-```js
-export const API = 'http://TU_IP_LOCAL:8000'
-```
-
 ```bash
 yarn dev
 ```
@@ -123,12 +118,8 @@ yarn dev
 ```bash
 cd mobile
 yarn install
-```
-
-Editar IPs en `App.js`:
-```js
-const DEV_URL = 'http://TU_IP_LOCAL:5173'
-const BACKEND  = 'http://TU_IP_LOCAL:8000'
+cp .env.example .env
+# Agregar: EXPO_PUBLIC_FRONTEND_URL y EXPO_PUBLIC_BACKEND_URL
 ```
 
 ```bash
@@ -143,8 +134,11 @@ yarn start
 | Archivo | Variable | Descripción |
 |---|---|---|
 | `back/.env` | `GROQ_API_KEY` | API key de [Groq](https://console.groq.com) |
+| `back/.env` | `ALLOWED_ORIGINS` | Orígenes CORS permitidos (coma-separados). Default: `*` |
 | `accesomov/.env` | `VITE_MAPBOX_TOKEN` | Token de [Mapbox](https://account.mapbox.com) |
 | `accesomov/.env` | `VITE_API_URL` | URL del backend, ej. `http://192.168.0.x:8000` |
+| `mobile/.env` | `EXPO_PUBLIC_FRONTEND_URL` | URL del frontend deployado |
+| `mobile/.env` | `EXPO_PUBLIC_BACKEND_URL` | URL del backend deployado |
 
 En la misma red WiFi (para Expo Go), usa tu IP local en lugar de `localhost`:
 
@@ -162,6 +156,47 @@ cp accesomov/.env.example accesomov/.env
 cp back/.env.example back/.env
 # Agregar GROQ_API_KEY
 ```
+
+---
+
+## Deploy en producción
+
+El stack completo está containerizado y listo para IBM Cloud Code Engine.
+
+### Stack completo con Docker Compose
+
+```bash
+cp back/.env.example back/.env        # GROQ_API_KEY + ALLOWED_ORIGINS
+cp accesomov/.env.example accesomov/.env  # VITE_MAPBOX_TOKEN
+
+docker compose up --build
+# Frontend → http://localhost:3000
+# Backend  → http://localhost:8000
+```
+
+### IBM Cloud Code Engine (propuesta enterprise)
+
+```bash
+# Autenticarse
+ibmcloud login
+ibmcloud ce project create --name alivia-prod
+
+# Backend
+ibmcloud ce application create \
+  --name alivia-backend \
+  --image icr.io/alivia/backend:latest \
+  --port 8000 \
+  --env GROQ_API_KEY=<key> \
+  --env ALLOWED_ORIGINS=https://alivia-frontend.your-domain.com
+
+# Frontend
+ibmcloud ce application create \
+  --name alivia-frontend \
+  --image icr.io/alivia/frontend:latest \
+  --port 80
+```
+
+> Las imágenes se publican en IBM Container Registry (`icr.io`). El backend de Code Engine escala a cero cuando no hay tráfico y soporta las regulaciones de datos de gobierno de CDMX requeridas para contratos con alcaldías.
 
 ---
 
@@ -293,6 +328,46 @@ src/
 | Infraestructura peatonal y ciclista | Instituto de Planeación Democrática y Prospectiva, CDMX |
 | Red vial OpenStreetMap | © OpenStreetMap contributors |
 | Estadísticas de movilidad | TomTom 2024 · SEMOVI 2025 · INEGI · STC Metro |
+
+---
+
+## Roadmap IBM — Data Partnership
+
+Alivía fue construida como plataforma de recopilación de datos de movilidad ciudadana, con integración directa a los productos de IBM para ciudades inteligentes.
+
+### Qué aporta Alivía a IBM
+
+| Activo | Descripción |
+|---|---|
+| Dataset de accesibilidad | 179 colonias de Tlalpan con scores calculados a partir de datos abiertos de infraestructura urbana |
+| Reportes ciudadanos geolocalizados | Inundaciones, zonas inseguras, operativos, cortes de luz — capturados en tiempo real por usuarios en campo |
+| Canal de adopción ciudadana | App funcional con UX probada en hackathon, escalable a más alcaldías |
+| Narrativa ESG | Accesibilidad para personas con movilidad reducida, adultos mayores y ciclistas — alineada con metas de impacto social de IBM |
+
+### Integración técnica con IBM
+
+| Componente IBM | Rol en Alivía |
+|---|---|
+| **watsonx.ai (Granite)** | Reemplaza Groq como modelo base del asistente de movilidad — misma interfaz, mayor alineación con la oferta IBM |
+| **IBM Environmental Intelligence Suite** | Enriquece los scores de colonia con datos de clima, inundación y calidad del aire en tiempo real |
+| **IBM Maximo Spatial** | Cruza los reportes ciudadanos con el inventario de infraestructura urbana de la alcaldía |
+| **IBM App ID** | Autenticación de usuarios para que los reportes sean auditables y atribuibles |
+| **IBM Cloud** | Hosting enterprise con cumplimiento de datos de gobierno — reemplaza Railway/Vercel |
+
+### Qué falta para la siguiente conversación con IBM
+
+1. **Persistencia de reportes** — los reportes ciudadanos aún no se guardan en base de datos; sin esto no hay dataset que ofrecer
+2. **Dashboard de analítica** — IBM necesita visualizar los datos antes de cualquier acuerdo
+3. **Integración watsonx.ai** — cambiar el endpoint `/chat` de Groq a Granite para la demo
+4. **Framework de consentimiento** — requerido por legal para que IBM use los datos en sus plataformas
+
+### Modelo de negocio propuesto
+
+> Alivía aporta el canal ciudadano y los datos del terreno. IBM aporta la infraestructura enterprise y la distribución a gobiernos. Los datos pertenecen a la ciudad — Alivía los recopila, IBM los procesa, los gobiernos los usan.
+
+- IBM paga por el dataset limpio y estructurado (por colonia, por mes)
+- IBM co-brandea la app como parte de su oferta de smart cities para CDMX
+- Revenue share cuando la plataforma se venda a otras ciudades de LATAM
 
 ---
 

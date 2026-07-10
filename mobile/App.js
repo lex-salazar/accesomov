@@ -7,8 +7,8 @@ import * as FileSystem from 'expo-file-system/legacy'
 import * as Speech from 'expo-speech'
 import { Audio } from 'expo-av'
 
-const DEV_URL    = 'http://10.48.226.195:5173'
-const BACKEND    = 'http://10.48.226.195:8000'
+const DEV_URL = process.env.EXPO_PUBLIC_FRONTEND_URL ?? 'http://localhost:5173'
+const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL  ?? 'http://localhost:8000'
 
 export default function App() {
   const [loading, setLoading] = useState(true)
@@ -120,10 +120,8 @@ export default function App() {
 
       const data = await res.json()
       const texto = data.texto || ''
-      Alert.alert('Transcripción', texto || '(vacío)')   // debug temporal
       sendToWeb('voice-result', { texto })
     } catch (e) {
-      Alert.alert('Error voz', e.message)                // debug temporal
       sendToWeb('voice-error', { message: `Error: ${e.message}` })
     }
   }
