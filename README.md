@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="accesomov/logo.png" alt="Alivía" width="160" />
+<video src="assets/alivia.mp4" autoplay loop muted playsinline width="480"></video>
 
 ### Movilidad urbana accesible para quienes más lo necesitan
 
